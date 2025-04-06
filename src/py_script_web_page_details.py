@@ -372,14 +372,17 @@ def main():
         output_path = os.path.join(output_dir, output_csv_file)
 
         options = Options()
-        options.add_argument('--headless')  # use old headless
+        # options.add_argument('--headless')  # use old headless
+        options.add_argument('--headless' if config["settings"]["headless"] else '--no-headless')
         options.add_argument('--disable-gpu')
         options.add_argument('--no-sandbox')
         options.add_argument('--disable-dev-shm-usage')
-        options.add_argument('--window-size=1440,1080')
+        # options.add_argument('--window-size=1440,1080')
+        options.add_argument(f'--window-size={config["settings"]["window_width"]},{config["settings"]["window_height"]}')
+       
 
-        driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()),
-                                  options=options)  # Dynamic driver
+
+        driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()),options=options)  # Dynamic driver
 
         metadata_list = []
 
@@ -390,11 +393,12 @@ def main():
                 metadata_list.append(metadata)
 
         fieldnames = [
-            "http-code", "http-type", "Page-URL", "Page-id", "page-slug", "Title", "Description",
-            "Keywords",
+            "http-code", "http-type", "Page-URL", "Page-id", "page-slug", 
+            "Title", "Description", "Keywords",
             "Opengraph type", "Opengraph image", "Opengraph title", "Opengraph description",
             "Article H1", "Article Headings", "Article Links Internal", "Article Links External",
-            "Article Images", "Article Images NoAlt", "content-count", "content-ratio",
+            "Article Images", "Article Images NoAlt", 
+            "content-count", "content-ratio",
             "Parent-ID", "Parent-URL", "IA error",
         ]
         write_to_csv(output_path, metadata_list, fieldnames)
