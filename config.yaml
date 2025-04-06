@@ -3,7 +3,12 @@ settings:
   input_file: "ask-for-input.txt"
   output_base_dir: "E:\\python_output"
   output_subfolder: "_output"
-  log_level: "ERROR"  # Can be DEBUG, INFO, WARNING, ERROR, CRITICAL
+  log_level: "INFO"  # Can be DEBUG, INFO, WARNING, ERROR, CRITICAL
   headless: True
   window_width: 1440
   window_height: 1080
+
+  # --- New/Updated Settings ---
+  request_max_retries: 3              # Max retries for HTTP HEAD requests
+  request_timeout: 10                 # Timeout in seconds for HTTP HEAD requests
+  skip_ssl_check_on_error: false      # Set to true to automatically skip SSL checks globally if an SSL error occurs on any URL
