@@ -1,0 +1,9 @@
+# config.yaml
+settings:
+  input_file: "ask-for-input.txt"
+  output_base_dir: "E:\\python_output"
+  output_subfolder: "_output"
+  log_level: "ERROR"  # Can be DEBUG, INFO, WARNING, ERROR, CRITICAL
+  headless: True
+  window_width: 1440
+  window_height: 1080
