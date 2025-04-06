@@ -320,7 +320,7 @@ def read_input_file(input_file):
     try:
         if not os.path.exists(input_file):
             input_file = input(
-                f"{Fore.YELLOW}Default file '{DEFAULT_INPUT_FILE}' not found. Please provide a valid input file path: ").strip()
+                f"{Fore.YELLOW}Default file '{INPUT_FILE}' not found. Please provide a valid input file path: ").strip()
             while not os.path.exists(input_file):
                 input_file = input(Fore.RED + "File not found. Please enter a valid path: ").strip()
         with open(input_file, "r") as file:
@@ -355,7 +355,7 @@ def main():
     """Main script to extract metadata from URLs and save it to a CSV file."""
 
     try:
-        urls = read_input_file(DEFAULT_INPUT_FILE)
+        urls = read_input_file(INPUT_FILE)
 
         num_to_process = input(
             f"{Fore.CYAN}How many URLs to process? (0 or Enter for all, max {len(urls)}): ").strip()
@@ -394,7 +394,7 @@ def main():
             "Keywords",
             "Opengraph type", "Opengraph image", "Opengraph title", "Opengraph description",
             "Article H1", "Article Headings", "Article Links Internal", "Article Links External",
-            "Article Images", "Article ImagesNoAlt", "content-count", "content-ratio",
+            "Article Images", "Article Images NoAlt", "content-count", "content-ratio",
             "Parent-ID", "Parent-URL", "IA error",
         ]
         write_to_csv(output_path, metadata_list, fieldnames)
