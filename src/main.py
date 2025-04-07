@@ -28,6 +28,10 @@ from .config_loader import (
 
 # --- Main Execution ---
 
+# ========================================
+# Function: main
+# Description: Main script execution function.
+# ========================================
 def main() -> None:
     """Main script execution function."""
     # Setup logging after colorama init

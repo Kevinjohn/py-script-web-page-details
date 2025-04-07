@@ -6,6 +6,10 @@ from bs4 import BeautifulSoup
 
 # --- HTML Parsing and Data Extraction Functions ---
 
+# ========================================
+# Function: extract_meta_content
+# Description: Extract content from a specific meta tag (name or property).
+# ========================================
 def extract_meta_content(soup: BeautifulSoup, meta_name: str) -> str:
     """
     Extract content from a specific meta tag (name or property).
@@ -31,6 +35,11 @@ def extract_meta_content(soup: BeautifulSoup, meta_name: str) -> str:
         logging.warning(f"Error extracting meta content for '{meta_name}': {e}")
     return content
 
+
+# ========================================
+# Function: extract_meta_title
+# Description: Extract the text content from the <title> tag.
+# ========================================
 def extract_meta_title(soup: BeautifulSoup) -> str:
     """
     Extract the text content from the <title> tag.
@@ -52,6 +61,11 @@ def extract_meta_title(soup: BeautifulSoup) -> str:
         logging.warning(f"Error extracting meta title: {e}")
     return title
 
+
+# ========================================
+# Function: extract_h1
+# Description: Extract the text of the first H1 tag, optionally within a specific scope.
+# ========================================
 def extract_h1(soup: BeautifulSoup, scope_selector: Optional[str] = "article") -> str:
     """
     Extract the text of the first H1 tag, optionally within a specific scope.
@@ -80,6 +94,11 @@ def extract_h1(soup: BeautifulSoup, scope_selector: Optional[str] = "article") -
         logging.warning(f"Error extracting H1 within scope '{scope_selector}': {e}")
     return h1_text
 
+
+# ========================================
+# Function: count_tags
+# Description: Counts specified tags (e.g., H1-H6, img) within an optional scope.
+# ========================================
 def count_tags(soup: BeautifulSoup, tags: List[str], scope_selector: Optional[str] = "article") -> int:
     """
     Counts specified tags (e.g., H1-H6, img) within an optional scope.
@@ -106,6 +125,11 @@ def count_tags(soup: BeautifulSoup, tags: List[str], scope_selector: Optional[st
         logging.warning(f"Error counting tags '{tags}' within scope '{scope_selector}': {e}")
     return count
 
+
+# ========================================
+# Function: count_links
+# Description: Counts internal or external links within an optional scope.
+# ========================================
 def count_links(soup: BeautifulSoup, base_url: str, internal: bool, scope_selector: Optional[str] = "article") -> int:
     """
     Counts internal or external links within an optional scope.
@@ -163,6 +187,11 @@ def count_links(soup: BeautifulSoup, base_url: str, internal: bool, scope_select
         logging.warning(f"Error counting {link_type} links: {e}", exc_info=True)
         return 0 # Return 0 on error
 
+
+# ========================================
+# Function: count_images_no_alt
+# Description: Counts images without alt text or with empty alt text within an optional scope.
+# ========================================
 def count_images_no_alt(soup: BeautifulSoup, scope_selector: Optional[str] = "article") -> int:
     """
     Counts images without alt text or with empty alt text within an optional scope.
@@ -190,6 +219,11 @@ def count_images_no_alt(soup: BeautifulSoup, scope_selector: Optional[str] = "ar
         logging.warning(f"Error counting images without alt text: {e}")
     return count
 
+
+# ========================================
+# Function: extract_page_slug
+# Description: Extract the page slug (last part of the path) from the URL.
+# ========================================
 def extract_page_slug(url: str) -> str:
     """
     Extract the page slug (last part of the path) from the URL.
@@ -212,6 +246,11 @@ def extract_page_slug(url: str) -> str:
         logging.warning(f"Error extracting page slug from {url}: {e}")
         return "unknown"
 
+
+# ========================================
+# Function: extract_body_class
+# Description: Extracts the value of a specific class prefixed class from the body tag.
+# ========================================
 def extract_body_class(soup: BeautifulSoup, prefix: str, default: Optional[str] = None) -> Optional[str]:
     """
     Extracts the value of a specific class prefixed class from the body tag.
@@ -239,6 +278,11 @@ def extract_body_class(soup: BeautifulSoup, prefix: str, default: Optional[str] 
         logging.warning(f"Error extracting body class with prefix '{prefix}': {e}")
         return default
 
+
+# ========================================
+# Function: extract_placeholder_data
+# Description: Placeholder function for future data extraction.
+# ========================================
 def extract_placeholder_data(soup: BeautifulSoup, data_type: str) -> Optional[Any]:
     """Placeholder function for future data extraction."""
     # Example: Could be implemented to count words, find specific elements, etc.

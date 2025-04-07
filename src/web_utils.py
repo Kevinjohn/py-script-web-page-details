@@ -16,6 +16,10 @@ from .config_loader import REQUEST_MAX_RETRIES, REQUEST_TIMEOUT
 
 # --- Helper Functions ---
 
+# ========================================
+# Function: fetch_http_status_and_type
+# Description: Fetch the HTTP status code and content type using requests.
+# ========================================
 def fetch_http_status_and_type(
     url: str,
     ssl_decision: Dict[str, bool], # Use mutable dict for state
@@ -116,6 +120,10 @@ def fetch_http_status_and_type(
     return None, final_error
 
 
+# ========================================
+# Function: fetch_and_parse_html
+# Description: Fetches HTML content using Selenium, waits for page load, parses with BeautifulSoup.
+# ========================================
 def fetch_and_parse_html(url: str, driver: webdriver.Chrome, page_load_timeout: int = 30) -> Optional[BeautifulSoup]:
     """
     Fetches HTML content using Selenium, waits for page load, parses with BeautifulSoup.

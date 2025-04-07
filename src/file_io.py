@@ -6,6 +6,10 @@ from urllib.parse import urlparse
 from typing import List, Dict, Any
 from colorama import Fore, Style # For prompts
 
+# ========================================
+# Function: read_input_file
+# Description: Reads URLs from a specified input file, one URL per line.
+# ========================================
 def read_input_file(input_file_path: str) -> List[str]:
     """
     Reads URLs from a specified input file, one URL per line.
@@ -61,6 +65,10 @@ def read_input_file(input_file_path: str) -> List[str]:
         return []
 
 
+# ========================================
+# Function: sanitise_domain
+# Description: Extracts and sanitises the domain name from a URL for use in filenames.
+# ========================================
 def sanitise_domain(url: str) -> str:
     """
     Extracts and sanitises the domain name from a URL for use in filenames.
@@ -89,6 +97,10 @@ def sanitise_domain(url: str) -> str:
         return "unknown_domain"
 
 
+# ========================================
+# Function: write_to_csv
+# Description: Writes a list of dictionaries to a CSV file. Creates directory if needed.
+# ========================================
 def write_to_csv(file_path: str, data: List[Dict[str, Any]], fieldnames: List[str]) -> bool:
     """
     Writes a list of dictionaries to a CSV file. Creates directory if needed.

@@ -14,6 +14,10 @@ from .html_parser import (
 
 # --- Orchestration Function ---
 
+# ========================================
+# Function: extract_metadata
+# Description: Orchestrates the extraction of various metadata elements for a given URL.
+# ========================================
 def extract_metadata(
     url: str,
     driver: WebDriver, # Use the more specific WebDriver type

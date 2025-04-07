@@ -44,7 +44,13 @@ REQUEST_MAX_RETRIES: int = settings["request_max_retries"]
 REQUEST_TIMEOUT: int = settings["request_timeout"]
 SKIP_SSL_CHECK_ON_ERROR: bool = settings["skip_ssl_check_on_error"] # Retained for potential future non-interactive use
 
+
 # --- Configure logging ---
+
+# ========================================
+# Function: setup_logging
+# Description: Configures the root logger based on settings.
+# ========================================
 def setup_logging():
     """Configures the root logger based on settings."""
     log_level: int = getattr(logging, LOG_LEVEL_STR.upper(), logging.INFO)
