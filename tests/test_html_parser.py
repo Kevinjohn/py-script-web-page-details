@@ -8,6 +8,9 @@ from src.html_parser import (
     extract_meta_content, extract_meta_title, extract_h1, count_tags,
     count_links, count_images_no_alt, extract_body_class, extract_page_slug
 )
+# Import DEFAULT_SETTINGS to easily access the default priority list for tests
+from src.config_loader import DEFAULT_SETTINGS
+
 
 # --- Test Data ---
 # (Define ALL sample HTML strings as constants at the module level)
@@ -76,16 +79,17 @@ def no_title_soup():
 
 @pytest.fixture
 def no_article_soup():
+    """Provides BeautifulSoup object with no article tag."""
     return BeautifulSoup(SAMPLE_HTML_NO_ARTICLE, 'html.parser')
 
 @pytest.fixture
 def no_body_class_soup():
+    """Provides BeautifulSoup object with no body class attribute."""
     return BeautifulSoup(SAMPLE_HTML_NO_BODY_CLASS, 'html.parser')
 
 
 # --- Existing Tests ---
 # (Keep all existing test functions: test_extract_meta_title, etc.)
-# Make sure they are using the fixtures or sample constants correctly defined above.
 def test_extract_meta_title(basic_soup):
     assert extract_meta_title(basic_soup) == "Test Title"
 
@@ -183,74 +187,89 @@ def test_count_images_no_alt_missing_scope(basic_soup):
     assert count_images_no_alt(basic_soup, scope_selector="#nonexistent-scope") == 0
 
 
-# --- NEW Tests for Scope Finding (Now use defined constants/imports) ---
+# --- NEW Tests for Scope Finding (Corrected Calls & Assertions) ---
+
+# Use the default priority list for most scope tests for simplicity
+DEFAULT_PRIORITY = DEFAULT_SETTINGS["scope_selectors_priority"]
 
 # ========================================
 # Function: test_find_content_scope_main
-# Description: Tests finding the <main> tag.
 # ========================================
 def test_find_content_scope_main():
     """Tests that <main> tag is preferred."""
     soup = BeautifulSoup(HTML_WITH_MAIN, 'html.parser') # Use constant
-    assert find_content_scope(soup) == "main" # Use imported function
+    # *** Pass priority_list argument ***
+    assert find_content_scope(soup, priority_list=DEFAULT_PRIORITY) == "main" # Use imported function
 
 # ========================================
 # Function: test_find_content_scope_div_role
-# Description: Tests finding <div role='main'> when <main> is absent.
 # ========================================
 def test_find_content_scope_div_role():
     """Tests that <div role='main'> is found if <main> is not present."""
     soup = BeautifulSoup(HTML_WITH_DIV_ROLE, 'html.parser') # Use constant
-    assert find_content_scope(soup) == 'div[role="main"]' # Use imported function
+    # *** Corrected Assertion: Expect single quotes inside ***
+    assert find_content_scope(soup, priority_list=DEFAULT_PRIORITY) == "div[role='main']" # Use imported function
 
 # ========================================
 # Function: test_find_content_scope_single_article
-# Description: Tests finding a single <article> when others are absent.
 # ========================================
 def test_find_content_scope_single_article(basic_soup):
     """Tests finding a single <article> if <main> and div[role=main] absent."""
-    assert find_content_scope(basic_soup) == "article" # Use imported function
+    # *** Pass priority_list argument ***
+    assert find_content_scope(basic_soup, priority_list=DEFAULT_PRIORITY) == "article" # Use imported function
 
 # ========================================
 # Function: test_find_content_scope_multiple_articles
-# Description: Tests that multiple <article> tags do not yield a scope.
 # ========================================
 def test_find_content_scope_multiple_articles():
     """Tests that multiple <article> tags result in no scope found."""
     soup = BeautifulSoup(HTML_WITH_MULTI_ARTICLE, 'html.parser') # Use constant
-    assert find_content_scope(soup) is None # Use imported function
+    # *** Pass priority_list argument ***
+    assert find_content_scope(soup, priority_list=DEFAULT_PRIORITY) is None # Use imported function
 
 # ========================================
 # Function: test_find_content_scope_main_preferred
-# Description: Tests that <main> is preferred over <article>.
 # ========================================
 def test_find_content_scope_main_preferred():
     """Tests that <main> is chosen even if <article> is present."""
     soup = BeautifulSoup(HTML_WITH_MAIN_AND_ARTICLE, 'html.parser') # Use constant
-    assert find_content_scope(soup) == "main" # Use imported function
+    # *** Pass priority_list argument ***
+    assert find_content_scope(soup, priority_list=DEFAULT_PRIORITY) == "main" # Use imported function
 
 # ========================================
 # Function: test_find_content_scope_div_role_preferred
-# Description: Tests that <div role='main'> is preferred over <article>.
 # ========================================
 def test_find_content_scope_div_role_preferred():
     """Tests that <div role='main'> is chosen over <article>."""
     soup = BeautifulSoup(HTML_WITH_DIV_AND_ARTICLE, 'html.parser') # Use constant
-    assert find_content_scope(soup) == 'div[role="main"]' # Use imported function
+    # *** Corrected Assertion: Expect single quotes inside ***
+    assert find_content_scope(soup, priority_list=DEFAULT_PRIORITY) == "div[role='main']" # Use imported function
 
 # ========================================
 # Function: test_find_content_scope_none_found
-# Description: Tests case where no suitable scope tags are found.
 # ========================================
 def test_find_content_scope_none_found():
     """Tests returning None when no suitable tags are present."""
     soup = BeautifulSoup(HTML_WITH_NONE, 'html.parser') # Use constant
-    assert find_content_scope(soup) is None # Use imported function
+    # *** Pass priority_list argument ***
+    assert find_content_scope(soup, priority_list=DEFAULT_PRIORITY) is None # Use imported function
+
+# ========================================
+# Function: test_find_content_scope_custom_priority
+# ========================================
+def test_find_content_scope_custom_priority():
+    """Tests using a custom priority list."""
+    # HTML has main and article, custom priority prefers article
+    soup = BeautifulSoup(HTML_WITH_MAIN_AND_ARTICLE, 'html.parser')
+    custom_priority = ["article", "main"] # Article first
+     # *** Pass custom priority_list argument ***
+    assert find_content_scope(soup, priority_list=custom_priority) == "article"
+
 
 # ========================================
 # Function: test_no_semantic_base_html_tag
-# Description: Tests the placeholder function for missing scope.
 # ========================================
+# (No changes needed here as it didn't call the modified function)
 def test_no_semantic_base_html_tag():
     """Tests the structure and error message from the fallback function."""
     test_url = "http://example.com/no-scope"

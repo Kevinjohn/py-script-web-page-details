@@ -9,48 +9,44 @@ from bs4 import BeautifulSoup, Tag # Import Tag for type hinting if needed
 
 # ========================================
 # Function: find_content_scope
-# Description: Finds the best semantic main content scope selector.
+# Description: Finds the best semantic main content scope selector based on priority list.
 # ========================================
-def find_content_scope(soup: BeautifulSoup) -> Optional[str]:
+def find_content_scope(soup: BeautifulSoup, priority_list: List[str]) -> Optional[str]:
     """
-    Finds the best CSS selector for the main content area.
-    Priority: <main>, <div role='main'>, single <article>.
+    Finds the best CSS selector for the main content area based on a priority list.
+    Handles special case for 'article' (must be unique).
 
     Args:
         soup: BeautifulSoup object of the page.
+        priority_list: Ordered list of CSS selectors to check.
 
     Returns:
         A CSS selector string for the best scope found, or None if none match.
     """
-    # 1. Look for <main> tag
-    main_tag = soup.find("main")
-    if main_tag:
-        logging.debug("Found <main> tag for content scope.")
-        # Using 'main' selector is simple and usually effective
-        # Alternatives could involve generating a more specific selector if needed
-        return "main"
+    logging.debug(f"Finding content scope using priority: {priority_list}")
+    for selector in priority_list:
+        # Special handling for 'article' - must be unique on page
+        if selector.lower() == "article":
+            article_tags = soup.find_all("article")
+            if len(article_tags) == 1:
+                logging.debug("Found single <article> tag matching priority list.")
+                return "article"
+            elif len(article_tags) > 1:
+                logging.warning(f"Found {len(article_tags)} <article> tags. Skipping 'article' selector due to non-uniqueness.")
+                continue # Try next selector in priority list
+            else:
+                # No articles found, continue to next selector
+                continue
+        else:
+            # For other selectors, find the first match
+            # Note: select_one implicitly handles cases where multiple might match
+            found_element = soup.select_one(selector)
+            if found_element:
+                logging.debug(f"Found element matching selector '{selector}' for content scope.")
+                return selector # Return the selector that matched
 
-    # 2. Look for <div role="main">
-    # Note: CSS attribute selectors are case-sensitive by default for values,
-    # but HTML roles are often case-insensitive in practice.
-    # Using a function to check attributes might be more robust, but selector is simpler.
-    # Let's try case-sensitive first, can adjust if needed.
-    div_main = soup.select_one('div[role="main"]')
-    if div_main:
-        logging.debug("Found <div role='main'> for content scope.")
-        return 'div[role="main"]'
-
-    # 3. Look for a *single* <article> tag
-    article_tags = soup.find_all("article")
-    if len(article_tags) == 1:
-        logging.debug("Found single <article> tag for content scope.")
-        return "article"
-    elif len(article_tags) > 1:
-        logging.warning(f"Found {len(article_tags)} <article> tags. Cannot determine unique scope. Skipping.")
-    else:
-        logging.debug("No <main>, <div role='main'>, or single <article> tag found.")
-
-    # 4. None of the preferred scopes found
+    # None of the selectors in the priority list yielded a valid scope
+    logging.debug(f"No suitable content scope found matching priority list.")
     return None
 
 # ========================================
@@ -59,8 +55,8 @@ def find_content_scope(soup: BeautifulSoup) -> Optional[str]:
 # ========================================
 def no_semantic_base_html_tag(url: str) -> Dict[str, Any]:
     """
-    Placeholder function for when no main semantic tag (<main>, div[role=main],
-    single <article>) is found. Returns default/empty values for scoped metrics.
+    Placeholder function for when no main semantic tag (based on priority list)
+    is found. Returns default/empty values for scoped metrics.
 
     Args:
         url: The URL of the page being processed.
@@ -68,7 +64,7 @@ def no_semantic_base_html_tag(url: str) -> Dict[str, Any]:
     Returns:
         A dictionary with default values for scope-dependent fields and an error message.
     """
-    error_msg = "No primary semantic content tag found (<main>, div[role=main], single <article>)"
+    error_msg = "No primary semantic content tag found matching priority list"
     logging.warning(f"{error_msg} for URL: {url}")
     # Return default values for the fields normally extracted from a scope
     return {
