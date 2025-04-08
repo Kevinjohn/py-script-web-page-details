@@ -4,16 +4,21 @@
 
 This Python script iterates through a list of URLs provided in an input file (`input_urls.txt`). For each URL, it fetches the page using Selenium, extracts various metadata elements (like title, meta description, headings, link counts, image counts), and saves the collected data into a timestamped CSV file.
 
-The script is designed with modularity in mind, separating concerns like configuration, web interaction, HTML parsing, and file I/O into different modules within the `src` directory.
+The script attempts to dynamically find the main content area based on a configurable priority list of CSS selectors (defaulting to `main`, `div[role='main']`, or a single `article`). It supports User-Agent rotation, configurable waits, and rate limiting.
+
+It is designed with modularity in mind, separating concerns like configuration, web interaction, HTML parsing, and file I/O into different modules within the `src` directory.
 
 ## Features
 
 * Reads configuration from `config.yaml`.
 * Fetches URLs listed in `input_urls.txt`.
 * Uses Selenium (with Chrome) to render pages and extract data.
+* **Rotates User-Agents** randomly from a configured list.
 * Handles potential SSL certificate errors interactively.
+* **Dynamically finds main content scope** based on a configurable selector priority list.
 * Extracts common metadata: Title, Description, Keywords, OpenGraph tags.
-* Analyzes content within the `<article>` tag (configurable) for: H1, heading counts, internal/external links, images with/without alt text.
+* Analyzes content within the determined scope for: H1, heading counts, internal/external links, images with/without alt text.
+* Includes **configurable delays** after page load and between requests.
 * Saves results to a CSV file in `output/metadata_reports/`.
 * Provides console feedback during processing.
 * Includes visual separators in the code for enhanced readability.
@@ -41,31 +46,47 @@ The script is designed with modularity in mind, separating concerns like configu
     ```bash
     pip install -r requirements.txt
     ```
-    *(This will install all libraries listed in `requirements.txt`)*
+    *(This will install all libraries listed in `requirements.txt`, including `pytest-mock` if you are running tests)*
 
 4.  **Configure `config.yaml`:**
-    Create a file named `config.yaml` in the project root. This file controls the script's behavior. Here's an example configuration:
+    Create a file named `config.yaml` in the project root. This file controls the script's behavior. Here's an example configuration including the new options:
     ```yaml
     settings:
-      input_file: "input_urls.txt"       # Path to the file containing URLs
-      output_base_dir: "output"         # Base directory for output files
-      output_subfolder: "metadata_reports" # Subfolder within output_base_dir
-      log_level: "INFO"                 # Logging level (DEBUG, INFO, WARNING, ERROR)
-      headless: true                    # Run Chrome in headless mode (true/false)
-      window_width: 1440                # Browser window width if not headless
-      window_height: 1080               # Browser window height if not headless
-      request_max_retries: 3            # Max retries for initial HEAD request
-      request_timeout: 10               # Timeout in seconds for HEAD request
-      # skip_ssl_check_on_error: false  # Note: Interactive prompt overrides this
+      input_file: "input_urls.txt"
+      output_base_dir: "output"
+      output_subfolder: "metadata_reports"
+      log_level: "INFO" # DEBUG, INFO, WARNING, ERROR
+      headless: true
+      window_width: 1440
+      window_height: 1080
+      request_max_retries: 3
+      request_timeout: 10
+
+      # --- Scope Finding ---
+      scope_selectors_priority: # Order matters! Checks for these selectors. 'article' requires unique match.
+        - "main"
+        - "div[role='main']"
+        # - "#content" # Example: Add custom selectors here
+        - "article"
+
+      # --- Web Interaction ---
+      user_agents: # List of User-Agents to choose from randomly. Leave empty or remove for default Selenium UA.
+        - "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/110.0.0.0 Safari/537.36"
+        - "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.3 Safari/605.1.15"
+        - "Mozilla/5.0 (X11; Linux x86_64; rv:108.0) Gecko/20100101 Firefox/108.0"
+      wait_after_load_seconds: 1 # Wait 1 second after page load state 'complete' before parsing. Set to 0 to disable.
+      delay_between_requests_seconds: 2 # Wait 2 seconds between processing each URL. Set to 0 to disable.
+
+      # ssl_skip_decision_on_error: false # Interactive prompt usually overrides this
     ```
 
 5.  **Prepare `input_urls.txt`:**
     Create a file named `input_urls.txt` (or whatever you specified in `config.yaml`) in the project root. List the URLs you want to process, one per line. Lines starting with `#` are ignored as comments.
     ```text
     # Example URLs
-    * https://www.example.com/page1
-    * https://www.example.org/another/page
-    * *https://www.example.net/commented/out
+    [http://your-first-url.com/some/page](http://your-first-url.com/some/page)
+    [https://another-domain.org/path/to/resource](https://another-domain.org/path/to/resource)
+    # [https://www.example.net/commented/out](https://www.example.net/commented/out)
     ```
 
 ## Running the Script
@@ -74,42 +95,3 @@ Ensure your virtual environment is activated. Navigate to the project's root dir
 
 ```bash
 python -m src.main
-```
-
-The script will:
-* Read the configuration.
-* Read the URLs from the input file.
-* Optionally prompt you for how many URLs to process.
-* Initialize the Selenium WebDriver (this might take a moment the first time as it downloads the driver if needed).
-* Process each URL, printing progress to the console.
-* Save the results upon completion.
-
-## Output
-
-The script will create a CSV file inside the directory specified by `output_base_dir` / `output_subfolder` in your `config.yaml` (default is `output/metadata_reports/`).
-
-The filename will be in the format: `page_details_<sanitised_domain>_<YYYYMMDD_HHMMSS>.csv`.
-`<sanitised_domain>` is derived from the first URL processed.
-
-The CSV file contains columns for all the extracted metadata points (e.g., `http-code`, `Page-URL`, `Title`, `Description`, `Article H1`, `Article Links Internal`, etc.).
-
-## Project Structure
-
-```
-your_project_root/
-├── src/                  # Main source code
-│   ├── __init__.py
-│   ├── config_loader.py
-│   ├── web_utils.py
-│   ├── html_parser.py
-│   ├── file_io.py
-│   ├── orchestrator.py
-│   └── main.py
-├── venv/                 # Virtual environment directory (if created)
-├── config.yaml           # Configuration file
-├── input_urls.txt        # List of URLs to process
-├── requirements.txt      # Python dependencies
-├── README.md             # This file
-└── output/               # Output directory (created by the script)
-    └── metadata_reports/ # Subdirectory for reports (created by the script)
-```
