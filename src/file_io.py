@@ -72,28 +72,40 @@ def read_input_file(input_file_path: str) -> List[str]:
 def sanitise_domain(url: str) -> str:
     """
     Extracts and sanitises the domain name from a URL for use in filenames.
+    Handles http/https URLs and file URLs appropriately.
 
     Args:
         url: The URL string.
 
     Returns:
-        A sanitised domain name (e.g., 'www_example_com') or 'unknown_domain'.
+        A sanitised domain name (e.g., 'www_example_com'), a sanitised filename
+        for file URLs (e.g., 'file_html'), or 'unknown_domain' for other cases.
     """
     try:
-        domain = urlparse(url).netloc
+        parsed_url = urlparse(url)
+        domain = parsed_url.netloc
+
         if not domain:
-             # Fallback for file:/// URLs or invalid URLs
-             path_part = os.path.basename(urlparse(url).path)
-             domain = path_part if path_part else "unknown_domain"
+            # If no domain, check if it's a file URL
+            if parsed_url.scheme == 'file':
+                # Use the base filename from the path for file URLs
+                path_part = os.path.basename(parsed_url.path)
+                # Sanitise the filename part
+                sanitised = path_part.replace(".", "_").replace(":", "_").replace("/", "_").replace("\\", "_")
+                sanitised = "".join(c for c in sanitised if c.isalnum() or c in ['_', '-']).strip('_')
+                return sanitised if sanitised else "unknown_file" # Use different default?
+            else:
+                # If no domain and not a file URL, it's unknown
+                return "unknown_domain"
+        else:
+            # If domain exists, proceed with sanitising the domain
+            sanitised = domain.replace(".", "_").replace(":", "_").replace("/", "_").replace("\\", "_")
+            sanitised = "".join(c for c in sanitised if c.isalnum() or c in ['_', '-']).strip('_')
+            return sanitised if sanitised else "unknown_domain" # Handle cases where domain sanitises to empty
 
-        # Replace common invalid filename characters (add more if needed)
-        sanitised = domain.replace(".", "_").replace(":", "_").replace("/", "_").replace("\\", "_")
-        # Remove any remaining potentially problematic chars (example: keep only alphanum, underscore, hyphen)
-        sanitised = "".join(c for c in sanitised if c.isalnum() or c in ['_', '-']).strip('_')
-
-        return sanitised if sanitised else "unknown_domain"
     except Exception as e:
-        logging.warning(f"Error sanitising domain for {url}: {e}")
+        # Log the exception for debugging purposes
+        logging.warning(f"Error sanitising domain for {url}: {e}", exc_info=True)
         return "unknown_domain"
 
 

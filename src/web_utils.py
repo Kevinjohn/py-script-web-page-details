@@ -11,8 +11,8 @@ from selenium.common.exceptions import TimeoutException
 from bs4 import BeautifulSoup
 from colorama import Fore # For user interaction prompts
 
-# Import config variables needed here
-from .config_loader import REQUEST_MAX_RETRIES, REQUEST_TIMEOUT
+# Import DEFAULT_SETTINGS to use for default argument values
+from .config_loader import DEFAULT_SETTINGS
 
 # --- Helper Functions ---
 
@@ -23,8 +23,9 @@ from .config_loader import REQUEST_MAX_RETRIES, REQUEST_TIMEOUT
 def fetch_http_status_and_type(
     url: str,
     ssl_decision: Dict[str, bool], # Use mutable dict for state
-    max_retries: int = REQUEST_MAX_RETRIES,
-    timeout: int = REQUEST_TIMEOUT
+    # Use defaults from DEFAULT_SETTINGS directly in the signature
+    max_retries: int = DEFAULT_SETTINGS["request_max_retries"],
+    timeout: int = DEFAULT_SETTINGS["request_timeout"]
 ) -> Tuple[Optional[int], Optional[str]]:
     """
     Fetch the HTTP status code and content type using requests.
@@ -43,6 +44,7 @@ def fetch_http_status_and_type(
     attempt_verify = not ssl_decision.get("skip_all", False) # Initial verify state
     last_error: Optional[Exception] = None # Store the last exception
 
+    # Now use max_retries and timeout arguments directly
     for attempt in range(max_retries):
         current_verify_state = attempt_verify # Verify state for *this* attempt
         logging.debug(f"Attempt {attempt + 1}/{max_retries} for {url} with verify={current_verify_state}")
@@ -50,7 +52,7 @@ def fetch_http_status_and_type(
             response = requests.head(
                 url,
                 allow_redirects=True,
-                timeout=timeout,
+                timeout=timeout, # Use the timeout argument
                 verify=current_verify_state
             )
             response.raise_for_status() # Raise HTTPError for bad responses (4xx or 5xx)
@@ -77,10 +79,8 @@ def fetch_http_status_and_type(
                     print(Fore.RED + "SSL verification not skipped. Cannot proceed with HEAD request for this URL.")
                     return None, "SSL Error (User Declined Skip)" # Return specific error
             else:
-                # User already agreed to skip all, retry immediately without verification
                  attempt_verify = False
                  logging.warning(f"Retrying {url} with SSL verification skipped as previously requested.")
-                 # No sleep needed here, loop will retry immediately
 
         except RequestException as e:
             last_error = e
@@ -91,7 +91,7 @@ def fetch_http_status_and_type(
                 time.sleep(wait_time) # Exponential backoff before retry
             else:
                 logging.error(f"Failed to fetch {url} after {max_retries} attempts due to RequestException.")
-                return None, f"Request Error ({type(e).__name__})" # More specific error
+                return None, f"Request Error ({type(e).__name__})"
 
         except Exception as e: # Catch any other unexpected errors
             last_error = e
@@ -103,12 +103,8 @@ def fetch_http_status_and_type(
             else:
                 return None, f"Unknown Error ({type(e).__name__})"
 
-        # If an SSLError occurred and user said 'y', the loop continues immediately.
-        # If any other error occurred, the time.sleep happened within the except block.
-
     # --- Loop finished without success ---
     logging.error(f"All {max_retries} attempts failed for {url}.")
-    # Determine final error type based on last_error
     final_error = "Fetch Failed (Max Retries)"
     if isinstance(last_error, SSLError):
         final_error = "SSL Error (Retries Failed After Skip)" if ssl_decision.get("skip_all") else "SSL Error (User Declined Skip or Retries Failed)"
@@ -139,14 +135,11 @@ def fetch_and_parse_html(url: str, driver: webdriver.Chrome, page_load_timeout: 
     try:
         logging.debug(f"Navigating to {url} with Selenium...")
         driver.get(url)
-        # Wait for the document.readyState to be 'complete'
         logging.debug(f"Waiting up to {page_load_timeout}s for page state 'complete'...")
         WebDriverWait(driver, page_load_timeout).until(
             lambda d: d.execute_script("return document.readyState") == "complete"
         )
         logging.debug(f"Page state 'complete' reached for {url}")
-        # Optional short sleep - consider if needed based on target site behavior
-        # time.sleep(1)
         page_source = driver.page_source
         logging.debug(f"Got page source (length: {len(page_source)}). Parsing with BeautifulSoup...")
         soup = BeautifulSoup(page_source, "html.parser")
@@ -156,6 +149,5 @@ def fetch_and_parse_html(url: str, driver: webdriver.Chrome, page_load_timeout: 
         logging.error(f"Timeout ({page_load_timeout}s) waiting for page load state 'complete' for {url}")
         return None
     except Exception as e:
-        # Catch WebDriverException, etc.
         logging.error(f"Error fetching or parsing {url} with Selenium: {e}", exc_info=True)
         return None
