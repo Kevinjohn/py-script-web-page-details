@@ -1,23 +1,35 @@
+# Example configuration for the Web Page Metadata Extractor script
 settings:
-  input_file: "input_urls.txt"
-  output_base_dir: "output"
-  output_subfolder: "metadata_reports"
-  log_level: "INFO"
-  headless: true
-  window_width: 1440
-  window_height: 1080
-  request_max_retries: 3
-  request_timeout: 10
+  # --- Input/Output ---
+  input_file: "input_urls.txt"         # Path to the file containing URLs (TXT or CSV auto-detected)
+  output_base_dir: "output"          # Base directory for output files
+  output_subfolder: "metadata_reports" # Subfolder within output_base_dir
+  output_format: "CSV"               # Output format: "CSV" or "JSON"
 
-  # --- New Options ---
-  scope_selectors_priority: # Order matters! Checks for these selectors. 'article' requires unique match.
-    - "main"
-    - "div[role='main']"
-    # - "#content" # Example custom selector
-    - "article"
-  user_agents: # List of User-Agents to choose from randomly. Leave empty or remove for default.
+  # --- Logging ---
+  log_level: "INFO"                  # Logging level: DEBUG, INFO, WARNING, ERROR, CRITICAL
+
+  # --- Browser/Fetching ---
+  headless: true                     # Run Chrome in headless mode (true/false)
+  window_width: 1440                 # Browser window width if not headless
+  window_height: 1080                # Browser window height if not headless
+  request_max_retries: 3             # Max retries for initial HEAD request if connection fails
+  request_timeout: 12                # Timeout in seconds for initial HEAD request
+  user_agents: # List of User-Agents to choose from randomly. Leave empty or comment out for default.
     - "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/110.0.0.0 Safari/537.36"
     - "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.3 Safari/605.1.15"
     - "Mozilla/5.0 (X11; Linux x86_64; rv:108.0) Gecko/20100101 Firefox/108.0"
-  wait_after_load_seconds: 1 # Wait 1 second after page load state 'complete' before parsing
-  delay_between_requests_seconds: 2 # Wait 2 seconds between processing each URL
+  # skip_ssl_check_on_error: false   # Usually handled by interactive prompt if applicable
+
+  # --- Parsing & Timing ---
+  scope_selectors_priority:          # Order matters! Checks for these selectors for main content. 'article' requires unique match.
+    - "main"
+    - "div[role='main']"
+    - "#main"                   # Example: Add custom selectors here if needed
+    - "article"
+  wait_after_load_seconds: 1         # Wait N seconds after page load state 'complete' before parsing. Set to 0 to disable.
+  delay_between_requests_seconds: 2  # Wait N seconds between processing each URL. Set to 0 to disable.
+
+  # --- Batch Processing ---
+  run_in_batches: false              # Set to true to enable interactive batch processing
+  batch_size: 25                     # Default number of URLs per batch if batching is enabled

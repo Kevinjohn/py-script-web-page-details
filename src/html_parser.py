@@ -1,11 +1,9 @@
 # src/html_parser.py
 import logging
-from urllib.parse import urlparse
+from urllib.parse import urlparse, ParseResult # Added ParseResult for type hint
 # Make sure typing includes Dict for the new function's return type
 from typing import Optional, List, Any, Dict
 from bs4 import BeautifulSoup, Tag # Import Tag for type hinting if needed
-
-# --- NEW Function to Find Content Scope ---
 
 # ========================================
 # Function: find_content_scope
@@ -24,26 +22,43 @@ def find_content_scope(soup: BeautifulSoup, priority_list: List[str]) -> Optiona
         A CSS selector string for the best scope found, or None if none match.
     """
     logging.debug(f"Finding content scope using priority: {priority_list}")
+    if not isinstance(priority_list, list):
+        logging.error("Invalid priority_list provided to find_content_scope. Must be a list.")
+        return None # Return None if priority_list is invalid
+
     for selector in priority_list:
+        if not isinstance(selector, str):
+            logging.warning(f"Invalid selector type in priority list: {selector}. Skipping.")
+            continue # Skip non-string selectors
+
         # Special handling for 'article' - must be unique on page
         if selector.lower() == "article":
-            article_tags = soup.find_all("article")
-            if len(article_tags) == 1:
-                logging.debug("Found single <article> tag matching priority list.")
-                return "article"
-            elif len(article_tags) > 1:
-                logging.warning(f"Found {len(article_tags)} <article> tags. Skipping 'article' selector due to non-uniqueness.")
-                continue # Try next selector in priority list
-            else:
-                # No articles found, continue to next selector
-                continue
+            try:
+                article_tags = soup.find_all("article")
+                if len(article_tags) == 1:
+                    logging.debug("Found single <article> tag matching priority list.")
+                    return "article"
+                elif len(article_tags) > 1:
+                    logging.warning(f"Found {len(article_tags)} <article> tags. Skipping 'article' selector due to non-uniqueness.")
+                    continue # Try next selector in priority list
+                else:
+                    # No articles found, continue to next selector
+                    continue
+            except Exception as e:
+                 logging.warning(f"Error during 'article' tag check: {e}. Skipping.")
+                 continue
         else:
             # For other selectors, find the first match
-            # Note: select_one implicitly handles cases where multiple might match
-            found_element = soup.select_one(selector)
-            if found_element:
-                logging.debug(f"Found element matching selector '{selector}' for content scope.")
-                return selector # Return the selector that matched
+            try:
+                 # Add try-except for robustness against invalid selectors from config
+                 found_element = soup.select_one(selector)
+                 if found_element:
+                     logging.debug(f"Found element matching selector '{selector}' for content scope.")
+                     return selector # Return the selector that matched
+            except Exception as e:
+                 # Catch potential exceptions from invalid CSS selectors in select_one
+                 logging.warning(f"Error applying selector '{selector}' from priority list: {e}. Skipping.")
+                 continue
 
     # None of the selectors in the priority list yielded a valid scope
     logging.debug(f"No suitable content scope found matching priority list.")
@@ -80,34 +95,32 @@ def no_semantic_base_html_tag(url: str) -> Dict[str, Any]:
 
 
 # --- Existing HTML Parsing and Data Extraction Functions ---
-# (These functions remain largely the same, still accepting scope_selector)
+# (Includes minor robustness enhancements)
 
 # ========================================
 # Function: extract_meta_content
 # Description: Extract content from a specific meta tag (name or property).
 # ========================================
 def extract_meta_content(soup: BeautifulSoup, meta_name: str) -> str:
-    """
-    Extract content from a specific meta tag (name or property).
-
-    Args:
-        soup: BeautifulSoup object of the page.
-        meta_name: The 'name' or 'property' attribute value of the meta tag.
-
-    Returns:
-        The content of the meta tag, or an empty string if not found or on error.
-    """
+    """ Extract content from a specific meta tag (name or property). """
     content = ""
+    if not meta_name or not isinstance(meta_name, str): return content # Basic robustness check
     try:
-        tag = soup.find("meta", attrs={"property": meta_name}) or \
-              soup.find("meta", attrs={"name": meta_name})
+        # Search by property first (commonly used for OpenGraph)
+        tag = soup.find("meta", attrs={"property": meta_name})
+        # If not found by property, search by name
+        if not tag:
+            tag = soup.find("meta", attrs={"name": meta_name})
+
         if tag and tag.has_attr("content"):
-             content = tag["content"].strip()
+             # Ensure content is treated as string, handle potential None explicitly
+             tag_content = tag.get("content")
+             content = str(tag_content).strip() if tag_content is not None else ""
              logging.debug(f"Found meta '{meta_name}': '{content[:50]}...'")
         else:
-             logging.debug(f"Meta tag '{meta_name}' not found or has no content.")
+             logging.debug(f"Meta tag '{meta_name}' not found or has no content attribute.")
     except Exception as e:
-        logging.warning(f"Error extracting meta content for '{meta_name}': {e}")
+        logging.warning(f"Error extracting meta content for '{meta_name}': {e}", exc_info=True)
     return content
 
 # ========================================
@@ -115,256 +128,223 @@ def extract_meta_content(soup: BeautifulSoup, meta_name: str) -> str:
 # Description: Extract the text content from the <title> tag.
 # ========================================
 def extract_meta_title(soup: BeautifulSoup) -> str:
-    """
-    Extract the text content from the <title> tag.
-
-    Args:
-        soup: BeautifulSoup object of the page.
-
-    Returns:
-        The title text, or an empty string if not found or on error.
-    """
+    """ Extract the text content from the <title> tag. """
     title = ""
     try:
-        if soup.title and soup.title.string:
-            title = soup.title.string.strip()
+        title_tag = soup.title
+        if title_tag and title_tag.string:
+            # Ensure string content is handled safely and stripped
+            title = str(title_tag.string).strip()
             logging.debug(f"Found title: '{title}'")
         else:
             logging.debug("Title tag not found or is empty.")
     except Exception as e:
-        logging.warning(f"Error extracting meta title: {e}")
+        logging.warning(f"Error extracting meta title: {e}", exc_info=True)
     return title
 
 # ========================================
 # Function: extract_h1
 # Description: Extract the text of the first H1 tag, optionally within a specific scope.
 # ========================================
-# Function signature remains the same (takes scope_selector string)
 def extract_h1(soup: BeautifulSoup, scope_selector: Optional[str] = None) -> str:
-    """
-    Extract the text of the first H1 tag, optionally within a specific scope.
-
-    Args:
-        soup: BeautifulSoup object of the page.
-        scope_selector: CSS selector for the scope (e.g., 'article', 'main').
-                        If None or empty, searches the whole document body.
-
-    Returns:
-        The H1 text, or an empty string if not found or on error.
-    """
+    """ Extract the text of the first H1 tag, optionally within a specific scope. """
     h1_text = ""
+    search_area: Optional[Tag | BeautifulSoup] = None # Define variable before try block
     try:
-        # If no selector provided, default to body for searching H1
-        search_area: Optional[Tag | BeautifulSoup] = soup.select_one(scope_selector) if scope_selector else soup.body
-        if search_area:
-            h1 = search_area.find("h1")
-            if h1:
-                h1_text = h1.get_text(strip=True)
-                logging.debug(f"Found H1 in scope '{scope_selector or 'body'}': '{h1_text}'")
-            else:
-                logging.debug(f"No H1 tag found within scope '{scope_selector or 'body'}'.")
-        # If scope_selector was provided but not found, select_one returns None
-        elif scope_selector:
-            logging.warning(f"Scope '{scope_selector}' not found for H1 extraction.")
-        # If scope_selector was None and soup.body is None (unlikely but possible)
-        elif not scope_selector and not soup.body:
-             logging.warning("Could not find body element for H1 extraction.")
+        if scope_selector:
+            search_area = soup.select_one(scope_selector)
+            if not search_area:
+                logging.warning(f"Scope '{scope_selector}' not found for H1 extraction.")
+                return h1_text # Return "" if scope not found
+        else:
+            search_area = soup.body
+            if not search_area:
+                 logging.warning("Could not find body element for H1 extraction.")
+                 return h1_text # Return "" if body not found
+
+        # Proceed only if search_area is valid
+        h1 = search_area.find("h1") # Find within the determined area
+        if h1:
+            h1_text = h1.get_text(strip=True)
+            logging.debug(f"Found H1 in scope '{scope_selector or 'body'}': '{h1_text}'")
+        else:
+            logging.debug(f"No H1 tag found within scope '{scope_selector or 'body'}'.")
 
     except Exception as e:
-        logging.warning(f"Error extracting H1 within scope '{scope_selector}': {e}")
+        logging.warning(f"Error extracting H1 within scope '{scope_selector or 'body'}': {e}", exc_info=True)
     return h1_text
 
 # ========================================
 # Function: count_tags
 # Description: Counts specified tags (e.g., H1-H6, img) within an optional scope.
 # ========================================
-# Function signature remains the same
 def count_tags(soup: BeautifulSoup, tags: List[str], scope_selector: Optional[str] = None) -> int:
-    """
-    Counts specified tags (e.g., H1-H6, img) within an optional scope.
-
-    Args:
-        soup: BeautifulSoup object of the page.
-        tags: A list of tag names to count (e.g., ['h1', 'h2', 'h3']).
-        scope_selector: CSS selector for the scope.
-                        If None or empty, searches the whole document body.
-
-    Returns:
-        The count of the specified tags, or 0 on error or if scope not found.
-    """
+    """ Counts specified tags within an optional scope. """
     count = 0
+    if not tags or not isinstance(tags, list): return count # Nothing to count or invalid input
+    search_area: Optional[Tag | BeautifulSoup] = None # Define variable
     try:
-        search_area = soup.select_one(scope_selector) if scope_selector else soup.body
-        if search_area:
-            found_tags = search_area.find_all(tags)
-            count = len(found_tags)
-            logging.debug(f"Found {count} tags {tags} in scope '{scope_selector or 'body'}'")
-        elif scope_selector:
-             logging.warning(f"Scope '{scope_selector}' not found for counting tags {tags}.")
-        elif not scope_selector and not soup.body:
-             logging.warning(f"Could not find body element for counting tags {tags}.")
+        if scope_selector:
+            search_area = soup.select_one(scope_selector)
+            if not search_area:
+                 logging.warning(f"Scope '{scope_selector}' not found for counting tags {tags}.")
+                 return count # Return 0 if scope not found
+        else:
+             search_area = soup.body
+             if not search_area:
+                  logging.warning(f"Could not find body element for counting tags {tags}.")
+                  return count # Return 0 if body not found
+
+        # Ensure tags in the list are strings before passing to find_all
+        valid_tags = [tag for tag in tags if isinstance(tag, str)]
+        if not valid_tags:
+             logging.warning("No valid string tag names provided for counting.")
+             return count
+
+        found_tags = search_area.find_all(valid_tags)
+        count = len(found_tags)
+        logging.debug(f"Found {count} tags {valid_tags} in scope '{scope_selector or 'body'}'")
 
     except Exception as e:
-        logging.warning(f"Error counting tags '{tags}' within scope '{scope_selector}': {e}")
+        logging.warning(f"Error counting tags '{tags}' within scope '{scope_selector or 'body'}': {e}", exc_info=True)
     return count
 
 # ========================================
 # Function: count_links
 # Description: Counts internal or external links within an optional scope.
 # ========================================
-# Function signature remains the same
 def count_links(soup: BeautifulSoup, base_url: str, internal: bool, scope_selector: Optional[str] = None) -> int:
-    """
-    Counts internal or external links within an optional scope.
-
-    Args:
-        soup: BeautifulSoup object of the page.
-        base_url: The base URL of the page being analyzed (for domain comparison).
-        internal: If True, count internal links; otherwise, count external links.
-        scope_selector: CSS selector for the scope. If None or empty, searches the whole document body.
-
-    Returns:
-        The count of links, or 0 on error or if scope not found.
-    """
+    """ Counts internal or external links within an optional scope. """
     count = 0
     link_type_str = 'internal' if internal else 'external'
+    search_area: Optional[Tag | BeautifulSoup] = None # Define variable
     try:
-        search_area = soup.select_one(scope_selector) if scope_selector else soup.body
-        if not search_area:
-            if scope_selector:
+        if scope_selector:
+            search_area = soup.select_one(scope_selector)
+            if not search_area:
                 logging.warning(f"Scope '{scope_selector}' not found for counting links.")
-            elif not soup.body:
-                 logging.warning(f"Could not find body element for counting links.")
-            return 0 # Return 0 if scope not found
+                return count
+        else:
+             search_area = soup.body
+             if not search_area:
+                  logging.warning(f"Could not find body element for counting links.")
+                  return count
 
-        base_domain = urlparse(base_url).netloc.lower()
+        base_domain = urlparse(base_url).netloc.lower() if base_url and isinstance(base_url, str) else ""
         links = search_area.find_all("a", href=True)
         logging.debug(f"Found {len(links)} total <a> tags with href in scope '{scope_selector or 'body'}'. Base domain: {base_domain}")
 
         for link in links:
-            href = link["href"].strip()
+            href = link.get("href") # Use .get for safety
+            if not href or not isinstance(href, str): continue # Skip if no href or not string
+            href = href.strip()
             if not href or href.startswith("#") or href.startswith(("mailto:", "tel:", "javascript:")):
                 continue
 
-            parsed_link = urlparse(href)
-            link_domain = parsed_link.netloc.lower()
+            try: # Add inner try-except for robustness against invalid hrefs during urlparse
+                parsed_link = urlparse(href)
+                link_domain = parsed_link.netloc.lower()
+            except ValueError:
+                logging.debug(f"Skipping link due to parsing error: {href}")
+                continue # Skip malformed URLs
 
             is_internal_link = False
-            if link_domain and link_domain == base_domain:
+            # Check base_domain exists before comparing
+            if base_domain and link_domain and link_domain == base_domain:
                  is_internal_link = True
-            elif not link_domain and (href.startswith('/') or not href.startswith(('http', '//'))): # Adjusted check for relative/absolute paths
+            # Ensure href is treated as string for startswith
+            elif not link_domain and (href.startswith('/') or not href.startswith(('http', '//'))):
                  is_internal_link = True
 
             if internal and is_internal_link:
                 count += 1
-                logging.debug(f"  Internal link counted: {href}")
             elif not internal and not is_internal_link:
                 count += 1
-                logging.debug(f"  External link counted: {href}")
 
         logging.debug(f"Counted {count} {link_type_str} links in scope '{scope_selector or 'body'}'")
-        return count
+
     except Exception as e:
         logging.warning(f"Error counting {link_type_str} links: {e}", exc_info=True)
-        return 0 # Return 0 on error
+    return count
 
 # ========================================
 # Function: count_images_no_alt
 # Description: Counts images without alt text or with empty alt text within an optional scope.
 # ========================================
-# Function signature remains the same
 def count_images_no_alt(soup: BeautifulSoup, scope_selector: Optional[str] = None) -> int:
-    """
-    Counts images without alt text or with empty alt text within an optional scope.
-
-    Args:
-        soup: BeautifulSoup object of the page.
-        scope_selector: CSS selector for the scope.
-                        If None or empty, searches the whole document body.
-
-    Returns:
-        The count of images without proper alt text, or 0 on error or if scope not found.
-    """
+    """ Counts images without alt text or with empty alt text within an optional scope. """
     count = 0
+    search_area: Optional[Tag | BeautifulSoup] = None # Define variable
     try:
-        search_area = soup.select_one(scope_selector) if scope_selector else soup.body
-        if not search_area:
-            if scope_selector:
-                logging.warning(f"Scope '{scope_selector}' not found for counting images.")
-            elif not soup.body:
-                 logging.warning(f"Could not find body element for counting images.")
-            return 0
+        if scope_selector:
+             search_area = soup.select_one(scope_selector)
+             if not search_area:
+                  logging.warning(f"Scope '{scope_selector}' not found for counting images.")
+                  return count
+        else:
+             search_area = soup.body
+             if not search_area:
+                  logging.warning(f"Could not find body element for counting images.")
+                  return count
 
         images = search_area.find_all("img")
-        count = sum(1 for img in images if not img.get("alt", "").strip())
+        count = sum(1 for img in images if not img.get("alt", "").strip()) # .get is safe
         logging.debug(f"Found {count} images without alt text in scope '{scope_selector or 'body'}' out of {len(images)} total images.")
     except Exception as e:
-        logging.warning(f"Error counting images without alt text: {e}")
+        logging.warning(f"Error counting images without alt text: {e}", exc_info=True)
     return count
 
 # ========================================
 # Function: extract_page_slug
 # Description: Extract the page slug (last part of the path) from the URL.
 # ========================================
-# (No changes needed here)
 def extract_page_slug(url: str) -> str:
-    """
-    Extract the page slug (last part of the path) from the URL.
-
-    Args:
-        url: The URL string.
-
-    Returns:
-        The slug, 'homepage' if path is '/' or empty, or 'unknown' on error.
-    """
+    """ Extract the page slug (last part of the path) from the URL. """
+    if not isinstance(url, str): return "unknown" # Robustness
     try:
         path = urlparse(url).path
         if not path or path == "/":
             return "homepage"
-        slug = path.rstrip("/").split("/")[-1]
+        # Ensure path is treated as string before stripping/splitting
+        slug = str(path).rstrip("/").split("/")[-1]
         return slug if slug else "index"
     except Exception as e:
-        logging.warning(f"Error extracting page slug from {url}: {e}")
+        logging.warning(f"Error extracting page slug from {url}: {e}", exc_info=True)
         return "unknown"
 
 # ========================================
 # Function: extract_body_class
 # Description: Extracts the value of a specific class prefixed class from the body tag.
 # ========================================
-# (No changes needed here)
 def extract_body_class(soup: BeautifulSoup, prefix: str, default: Optional[str] = None) -> Optional[str]:
-    """
-    Extracts the value of a specific class prefixed class from the body tag.
-
-    Args:
-        soup: BeautifulSoup object of the page.
-        prefix: The prefix of the class name to find (e.g., 'page-id-').
-        default: The value to return if the class is not found.
-
-    Returns:
-        The class value (without prefix), or the default value.
-    """
+    """ Extracts the value of a specific class prefixed class from the body tag. """
+    if not prefix or not isinstance(prefix, str): return default # Robustness
     try:
         body = soup.body
         if body and body.has_attr("class"):
+            # body['class'] can return a list of strings
             classes = body.get("class", [])
-            for cls in classes:
-                if cls.startswith(prefix):
-                    value = cls.replace(prefix, "").strip()
-                    logging.debug(f"Found body class with prefix '{prefix}': {value}")
-                    return value
+            if isinstance(classes, list): # Ensure it's a list
+                 for cls in classes:
+                     # Ensure cls is string before startswith check
+                     if isinstance(cls, str) and cls.startswith(prefix):
+                         value = cls.replace(prefix, "").strip()
+                         logging.debug(f"Found body class with prefix '{prefix}': {value}")
+                         return value
+            else:
+                 logging.warning(f"Body class attribute was not a list: {classes}")
+
         logging.debug(f"Body class with prefix '{prefix}' not found.")
         return default
     except Exception as e:
-        logging.warning(f"Error extracting body class with prefix '{prefix}': {e}")
+        logging.warning(f"Error extracting body class with prefix '{prefix}': {e}", exc_info=True)
         return default
 
 # ========================================
 # Function: extract_placeholder_data
 # Description: Placeholder function for future data extraction.
 # ========================================
-# (No changes needed here)
 def extract_placeholder_data(soup: BeautifulSoup, data_type: str) -> Optional[Any]:
-    """Placeholder function for future data extraction."""
+    """ Placeholder function for future data extraction. """
     logging.debug(f"Placeholder function called for {data_type}. Needs implementation.")
     return None
