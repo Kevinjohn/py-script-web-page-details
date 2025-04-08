@@ -2,13 +2,15 @@
 import pytest
 from bs4 import BeautifulSoup
 
-# Import the functions to test from your source file
+# Import ALL functions to test from your source file, including the new ones
 from src.html_parser import (
+    find_content_scope, no_semantic_base_html_tag, # Make sure these are included
     extract_meta_content, extract_meta_title, extract_h1, count_tags,
     count_links, count_images_no_alt, extract_body_class, extract_page_slug
 )
 
 # --- Test Data ---
+# (Define ALL sample HTML strings as constants at the module level)
 SAMPLE_HTML_BASIC = """
 <html>
 <head>
@@ -53,29 +55,37 @@ SAMPLE_HTML_NO_BODY_CLASS = """
 <html><head><title>No Body Class</title></head><body><p>Content</p></body></html>
 """
 
-# --- Helper to create soup objects ---
+# --- Samples for Scope Testing (Defined as constants) ---
+HTML_WITH_MAIN = "<body><header></header><main><h1>Main Content</h1></main><footer></footer></body>"
+HTML_WITH_DIV_ROLE = '<body><header></header><div role="main"><h1>Div Role Main</h1></div><footer></footer></body>'
+HTML_WITH_MULTI_ARTICLE = "<body><article>One</article><article>Two</article></body>"
+HTML_WITH_MAIN_AND_ARTICLE = "<body><main><h1>Main</h1><article>Sub</article></main></body>"
+HTML_WITH_DIV_AND_ARTICLE = '<body><div role="main"><h1>Main</h1><article>Sub</article></div></body>'
+HTML_WITH_NONE = "<body><header></header><div>Just a div</div><footer></footer></body>"
+
+
+# --- Helper Fixtures ---
+# (Keep existing fixtures)
 @pytest.fixture
 def basic_soup():
-    """Provides a basic BeautifulSoup object for testing."""
     return BeautifulSoup(SAMPLE_HTML_BASIC, 'html.parser')
 
 @pytest.fixture
 def no_title_soup():
-    """Provides BeautifulSoup object with no title tag."""
     return BeautifulSoup(SAMPLE_HTML_NO_TITLE, 'html.parser')
 
 @pytest.fixture
 def no_article_soup():
-    """Provides BeautifulSoup object with no article tag."""
     return BeautifulSoup(SAMPLE_HTML_NO_ARTICLE, 'html.parser')
 
 @pytest.fixture
 def no_body_class_soup():
-    """Provides BeautifulSoup object with no body class attribute."""
     return BeautifulSoup(SAMPLE_HTML_NO_BODY_CLASS, 'html.parser')
 
-# --- Existing Tests (kept for regression) ---
 
+# --- Existing Tests ---
+# (Keep all existing test functions: test_extract_meta_title, etc.)
+# Make sure they are using the fixtures or sample constants correctly defined above.
 def test_extract_meta_title(basic_soup):
     assert extract_meta_title(basic_soup) == "Test Title"
 
@@ -99,16 +109,12 @@ def test_count_tags_in_article(basic_soup):
 
 def test_count_links_internal_external(basic_soup):
     base_url = "http://example.com/page"
-    # /internal/link, relative/page.html should count as internal
     assert count_links(basic_soup, base_url, internal=True, scope_selector="article") == 2
-    # https://www.external.com should count as external
     assert count_links(basic_soup, base_url, internal=False, scope_selector="article") == 1
-    # Test outside scope (aside)
     assert count_links(basic_soup, base_url, internal=True, scope_selector="aside") == 1
     assert count_links(basic_soup, base_url, internal=False, scope_selector="aside") == 0
 
 def test_count_images_no_alt_in_article(basic_soup):
-    # Expecting 3: one missing alt, one empty alt="", one whitespace alt="   "
     assert count_images_no_alt(basic_soup, scope_selector="article") == 3
 
 def test_extract_body_class(basic_soup):
@@ -128,112 +134,132 @@ def test_extract_body_class(basic_soup):
 def test_extract_page_slug(url, expected_slug):
     assert extract_page_slug(url) == expected_slug
 
-# --- NEW Tests ---
-
-# ========================================
-# Function: test_extract_meta_title_missing_tag
-# Description: Tests title extraction when the tag is missing.
-# ========================================
 def test_extract_meta_title_missing_tag(no_title_soup):
-    """Tests title extraction when <title> tag is absent."""
     assert extract_meta_title(no_title_soup) == ""
 
-# ========================================
-# Function: test_extract_meta_content_missing_tag
-# Description: Tests meta content extraction when the specific tag is missing.
-# ========================================
 def test_extract_meta_content_missing_tag(basic_soup):
-    """Tests meta content extraction for a non-existent meta tag."""
     assert extract_meta_content(basic_soup, "nonexistent_meta") == ""
 
-# ========================================
-# Function: test_extract_meta_content_empty_content
-# Description: Tests meta content extraction when content attribute is empty.
-# ========================================
 def test_extract_meta_content_empty_content(basic_soup):
-    """Tests meta content extraction when content=''."""
     assert extract_meta_content(basic_soup, "empty_meta") == ""
 
-# ========================================
-# Function: test_extract_h1_missing_in_scope
-# Description: Tests H1 extraction when H1 is missing within the scope.
-# ========================================
 def test_extract_h1_missing_in_scope(basic_soup):
-    """Tests H1 extraction when the scope exists but has no H1."""
     assert extract_h1(basic_soup, scope_selector="#no-h1-scope") == ""
 
-# ========================================
-# Function: test_extract_h1_missing_scope
-# Description: Tests H1 extraction when the scope selector finds nothing.
-# ========================================
 def test_extract_h1_missing_scope(basic_soup):
-    """Tests H1 extraction when the scope itself is missing."""
     assert extract_h1(basic_soup, scope_selector="#nonexistent-scope") == ""
 
-# ========================================
-# Function: test_count_tags_missing_scope
-# Description: Tests tag counting when the scope selector finds nothing.
-# ========================================
 def test_count_tags_missing_scope(basic_soup):
-    """Tests tag counting returns 0 if scope is missing."""
     assert count_tags(basic_soup, ['h1', 'p'], scope_selector="#nonexistent-scope") == 0
 
-# ========================================
-# Function: test_count_links_variations
-# Description: Tests link counting with different href types within the article scope.
-# ========================================
 def test_count_links_variations(basic_soup):
-    """Tests different types of links within the article scope."""
     base_url = "http://example.com/page/"
-    # Internal: /internal/link (absolute path), relative/page.html (relative) -> Expected 2
     assert count_links(basic_soup, base_url, internal=True, scope_selector="article") == 2
-    # External: https://www.external.com -> Expected 1
     assert count_links(basic_soup, base_url, internal=False, scope_selector="article") == 1
-    # Check total links found (excluding mailto:, #, empty href)
-    # /internal/link, https://www.external.com, relative/page.html -> 3 countable links
     article_scope = basic_soup.select_one("article")
     all_a_tags = article_scope.find_all("a", href=True)
     countable_links = [a for a in all_a_tags if a['href'] and not a['href'].startswith(('#', 'mailto:', 'javascript:'))]
     assert len(countable_links) == 3
 
-
-# ========================================
-# Function: test_count_links_missing_scope
-# Description: Tests link counting when the scope selector finds nothing.
-# ========================================
 def test_count_links_missing_scope(basic_soup):
-    """Tests link counting returns 0 if scope is missing."""
     base_url = "http://example.com/page"
     assert count_links(basic_soup, base_url, internal=True, scope_selector="#nonexistent-scope") == 0
     assert count_links(basic_soup, base_url, internal=False, scope_selector="#nonexistent-scope") == 0
 
-# ========================================
-# Function: test_extract_page_slug_variations
-# Description: Tests page slug extraction with query params and fragments.
-# ========================================
 @pytest.mark.parametrize("url, expected_slug", [
     ("http://example.com/page?query=1", "page"),
     ("https://example.com/page#fragment", "page"),
     ("https://example.com/page/?query=1#frag", "page"),
-    ("http://example.com", "homepage"), # Just domain
+    ("http://example.com", "homepage"),
 ])
 def test_extract_page_slug_variations(url, expected_slug):
-    """Tests extracting page slugs with query params and fragments."""
     assert extract_page_slug(url) == expected_slug
 
-# ========================================
-# Function: test_extract_body_class_missing
-# Description: Tests body class extraction when body/class attribute is missing.
-# ========================================
 def test_extract_body_class_missing(no_body_class_soup):
-    """Tests body class extraction when body or class attribute is missing."""
     assert extract_body_class(no_body_class_soup, "page-id-") is None
     assert extract_body_class(no_body_class_soup, "page-id-", default="fallback") == "fallback"
 
-# ========================================
-# Function: test_count_images_no_alt_missing_scope
-# Description: Tests image alt counting when scope is missing.
-# ========================================
 def test_count_images_no_alt_missing_scope(basic_soup):
-    """Tests counting images with no alt returns 0 if scope is missing."""
     assert count_images_no_alt(basic_soup, scope_selector="#nonexistent-scope") == 0
+
+
+# --- NEW Tests for Scope Finding (Now use defined constants/imports) ---
+
+# ========================================
+# Function: test_find_content_scope_main
+# Description: Tests finding the <main> tag.
+# ========================================
+def test_find_content_scope_main():
+    """Tests that <main> tag is preferred."""
+    soup = BeautifulSoup(HTML_WITH_MAIN, 'html.parser') # Use constant
+    assert find_content_scope(soup) == "main" # Use imported function
+
+# ========================================
+# Function: test_find_content_scope_div_role
+# Description: Tests finding <div role='main'> when <main> is absent.
+# ========================================
+def test_find_content_scope_div_role():
+    """Tests that <div role='main'> is found if <main> is not present."""
+    soup = BeautifulSoup(HTML_WITH_DIV_ROLE, 'html.parser') # Use constant
+    assert find_content_scope(soup) == 'div[role="main"]' # Use imported function
+
+# ========================================
+# Function: test_find_content_scope_single_article
+# Description: Tests finding a single <article> when others are absent.
+# ========================================
+def test_find_content_scope_single_article(basic_soup):
+    """Tests finding a single <article> if <main> and div[role=main] absent."""
+    assert find_content_scope(basic_soup) == "article" # Use imported function
+
+# ========================================
+# Function: test_find_content_scope_multiple_articles
+# Description: Tests that multiple <article> tags do not yield a scope.
+# ========================================
+def test_find_content_scope_multiple_articles():
+    """Tests that multiple <article> tags result in no scope found."""
+    soup = BeautifulSoup(HTML_WITH_MULTI_ARTICLE, 'html.parser') # Use constant
+    assert find_content_scope(soup) is None # Use imported function
+
+# ========================================
+# Function: test_find_content_scope_main_preferred
+# Description: Tests that <main> is preferred over <article>.
+# ========================================
+def test_find_content_scope_main_preferred():
+    """Tests that <main> is chosen even if <article> is present."""
+    soup = BeautifulSoup(HTML_WITH_MAIN_AND_ARTICLE, 'html.parser') # Use constant
+    assert find_content_scope(soup) == "main" # Use imported function
+
+# ========================================
+# Function: test_find_content_scope_div_role_preferred
+# Description: Tests that <div role='main'> is preferred over <article>.
+# ========================================
+def test_find_content_scope_div_role_preferred():
+    """Tests that <div role='main'> is chosen over <article>."""
+    soup = BeautifulSoup(HTML_WITH_DIV_AND_ARTICLE, 'html.parser') # Use constant
+    assert find_content_scope(soup) == 'div[role="main"]' # Use imported function
+
+# ========================================
+# Function: test_find_content_scope_none_found
+# Description: Tests case where no suitable scope tags are found.
+# ========================================
+def test_find_content_scope_none_found():
+    """Tests returning None when no suitable tags are present."""
+    soup = BeautifulSoup(HTML_WITH_NONE, 'html.parser') # Use constant
+    assert find_content_scope(soup) is None # Use imported function
+
+# ========================================
+# Function: test_no_semantic_base_html_tag
+# Description: Tests the placeholder function for missing scope.
+# ========================================
+def test_no_semantic_base_html_tag():
+    """Tests the structure and error message from the fallback function."""
+    test_url = "http://example.com/no-scope"
+    result = no_semantic_base_html_tag(test_url) # Use imported function
+
+    assert isinstance(result, dict)
+    assert "IA error" in result
+    assert "No primary semantic content tag found" in result["IA error"]
+    # Check that scope-dependent fields have default values
+    assert result.get("Article H1") == ""
+    assert result.get("Article Headings") == 0
+    # ... (add checks for other fields if needed)

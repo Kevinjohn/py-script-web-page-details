@@ -2,11 +2,12 @@
 import logging
 from typing import Optional, Dict, Any
 from bs4 import BeautifulSoup
-from selenium.webdriver.remote.webdriver import WebDriver # More specific type hint
+from selenium.webdriver.remote.webdriver import WebDriver
 
-# Import specific functions from other modules using relative imports
+# Import specific functions from other modules
 from .web_utils import fetch_http_status_and_type, fetch_and_parse_html
 from .html_parser import (
+    find_content_scope, no_semantic_base_html_tag, # Import NEW functions
     extract_meta_content, extract_meta_title, extract_h1, count_tags,
     count_links, count_images_no_alt, extract_body_class, extract_page_slug,
     extract_placeholder_data
@@ -20,11 +21,12 @@ from .html_parser import (
 # ========================================
 def extract_metadata(
     url: str,
-    driver: WebDriver, # Use the more specific WebDriver type
-    ssl_decision: Dict[str, bool] # Accept the decision state
+    driver: WebDriver,
+    ssl_decision: Dict[str, bool]
 ) -> Optional[Dict[str, Any]]:
     """
     Orchestrates the extraction of various metadata elements for a given URL.
+    Determines the main content scope dynamically.
 
     Args:
         url: The URL to analyze.
@@ -37,82 +39,93 @@ def extract_metadata(
         very unexpected internal errors.
     """
     logging.info(f"Starting metadata extraction for: {url}")
-    # Initialize all potential fields to ensure CSV consistency
-    # Use empty strings or 0/None as appropriate defaults
+    # Initialize all potential fields
     result_data = {
         "http-code": None, "http-type": "Unknown", "Page-URL": url,
-        "page-slug": "", "Page-id": "", "Parent-ID": "0", # Assuming '0' is default parent
+        "page-slug": "", "Page-id": "", "Parent-ID": "0",
         "Title": "", "Description": "", "Keywords": "",
         "Opengraph type": "", "Opengraph image": "", "Opengraph title": "", "Opengraph description": "",
+        # Scope-dependent fields, might be overwritten by no_semantic_base_html_tag
         "Article H1": "", "Article Headings": 0,
         "Article Links Internal": 0, "Article Links External": 0,
         "Article Images": 0, "Article Images NoAlt": 0,
+        # Other fields
         "content-count": None, "content-ratio": None,
-        "Parent-URL": "", # Placeholder, seems unused currently
-        "IA error": "", # Information Architecture / Internal Analysis error
+        "Parent-URL": "",
+        "IA error": "",
     }
 
     try:
-        # 1. Fetch HTTP status and type first
+        # 1. Fetch HTTP status and type
         http_code, http_type = fetch_http_status_and_type(url, ssl_decision=ssl_decision)
         result_data["http-code"] = http_code
         result_data["http-type"] = http_type
-        result_data["page-slug"] = extract_page_slug(url) # Can be extracted even if HEAD fails
+        result_data["page-slug"] = extract_page_slug(url)
 
         # 2. Handle non-HTML or error cases from HEAD request
         if http_code is None:
-            # fetch_http_status_and_type already logged the specific error
-             result_data["IA error"] = http_type or "HEAD request failed" # Use error message from fetch
+             result_data["IA error"] = http_type or "HEAD request failed"
              logging.warning(f"Skipping Selenium fetch for {url} due to HEAD request failure ({result_data['IA error']}).")
-             return result_data # Return basic info with error
+             return result_data
 
         if http_type and "html" not in str(http_type).lower():
             logging.warning(f"Skipping detailed parsing for {url}. Status: {http_code}, Type: {http_type}")
             result_data["IA error"] = f"Non-HTML content ({http_type})"
-            return result_data # Return basic info as it's not HTML
+            return result_data
 
-        # 3. Fetch and parse HTML using Selenium (only if HEAD was okay and type is HTML)
+        # 3. Fetch and parse HTML using Selenium
         logging.debug(f"Proceeding to fetch full HTML for {url} with Selenium...")
         soup = fetch_and_parse_html(url, driver)
         if not soup:
-            logging.error(f"Failed to fetch or parse HTML for {url} with Selenium. Cannot extract details.")
+            logging.error(f"Failed to fetch or parse HTML for {url} with Selenium.")
             result_data["IA error"] = "Failed to fetch/parse HTML (Selenium)"
-            return result_data # Return basic info with error
+            return result_data
 
-        # 4. Extract detailed data from BeautifulSoup object
-        logging.debug(f"HTML parsed for {url}. Extracting details...")
-        article_scope = "article" # Define scope selector once
-
-        # Meta Tags
+        # 4. Extract non-scoped data
+        logging.debug(f"HTML parsed for {url}. Extracting non-scoped details...")
         result_data["Title"] = extract_meta_title(soup)
         result_data["Description"] = extract_meta_content(soup, "description")
         result_data["Keywords"] = extract_meta_content(soup, "keywords")
         result_data["Opengraph type"] = extract_meta_content(soup, "og:type")
         result_data["Opengraph image"] = extract_meta_content(soup, "og:image")
-        result_data["Opengraph title"] = extract_meta_content(soup, "og:title") # Often more specific than <title>
-        result_data["Opengraph description"] = extract_meta_content(soup, "og:description") # Often more specific than meta description
-
-        # Article Scope Analysis (using the defined scope)
-        result_data["Article H1"] = extract_h1(soup, scope_selector=article_scope)
-        result_data["Article Headings"] = count_tags(soup, ["h1", "h2", "h3", "h4", "h5", "h6"], scope_selector=article_scope)
-        result_data["Article Links Internal"] = count_links(soup, url, internal=True, scope_selector=article_scope)
-        result_data["Article Links External"] = count_links(soup, url, internal=False, scope_selector=article_scope)
-        result_data["Article Images"] = count_tags(soup, ["img"], scope_selector=article_scope)
-        result_data["Article Images NoAlt"] = count_images_no_alt(soup, scope_selector=article_scope)
-
-        # Other page data
-        result_data["Page-id"] = extract_body_class(soup, "page-id-", default="") # Default to empty string
-        result_data["Parent-ID"] = extract_body_class(soup, "parent-pageid-", default="0") # Keep '0' default
-
-        # Placeholder datactions
+        result_data["Opengraph title"] = extract_meta_content(soup, "og:title")
+        result_data["Opengraph description"] = extract_meta_content(soup, "og:description")
+        result_data["Page-id"] = extract_body_class(soup, "page-id-", default="")
+        result_data["Parent-ID"] = extract_body_class(soup, "parent-pageid-", default="0")
         result_data["content-count"] = extract_placeholder_data(soup, "content-count")
         result_data["content-ratio"] = extract_placeholder_data(soup, "content-ratio")
+
+        # --- 5. Find content scope and extract scoped data ---
+        logging.debug(f"Finding primary content scope for {url}...")
+        scope_selector = find_content_scope(soup) # Get the selector string or None
+
+        if scope_selector:
+            logging.info(f"Using scope '{scope_selector}' for detailed content analysis.")
+            # Call parsing functions using the found scope selector
+            result_data["Article H1"] = extract_h1(soup, scope_selector=scope_selector)
+            result_data["Article Headings"] = count_tags(soup, ["h1", "h2", "h3", "h4", "h5", "h6"], scope_selector=scope_selector)
+            result_data["Article Links Internal"] = count_links(soup, url, internal=True, scope_selector=scope_selector)
+            result_data["Article Links External"] = count_links(soup, url, internal=False, scope_selector=scope_selector)
+            result_data["Article Images"] = count_tags(soup, ["img"], scope_selector=scope_selector)
+            result_data["Article Images NoAlt"] = count_images_no_alt(soup, scope_selector=scope_selector)
+        else:
+            # If no scope found, call the placeholder/handler function
+            logging.warning(f"No primary content scope found for {url}. Calling handler.")
+            scope_fallback_data = no_semantic_base_html_tag(url)
+            # Update the main result dictionary with the fallback data
+            # This overwrites the default values for scoped fields
+            result_data.update(scope_fallback_data)
+            # Ensure the IA error from the fallback is preserved or appended if another exists
+            if result_data["IA error"] and result_data["IA error"] != scope_fallback_data.get("IA error"):
+                 result_data["IA error"] += f"; {scope_fallback_data.get('IA error', '')}"
+            elif not result_data["IA error"]:
+                 result_data["IA error"] = scope_fallback_data.get("IA error", "")
+
 
         logging.info(f"Successfully extracted metadata for: {url}")
         return result_data
 
     except Exception as e:
-        logging.exception(f"Critical unexpected error during metadata extraction orchestrator for {url}: {e}")
-        # Fill basic info if possible, ensure error is marked
+        logging.exception(f"Critical unexpected error during metadata extraction for {url}: {e}")
         error_result = {**result_data, "IA error": f"Critical Orchestrator Error ({type(e).__name__})"}
-        return error_result # Return data with error flag
+        return error_result
