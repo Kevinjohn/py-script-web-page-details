@@ -3,8 +3,7 @@ import logging
 import yaml
 from typing import Dict, Any
 
-# --- Load Configuration ---
-# Default settings in case config file is missing parts
+# Default settings remain as a constant
 DEFAULT_SETTINGS: Dict[str, Any] = {
     "input_file": "input_urls.txt",
     "output_base_dir": "output",
@@ -15,48 +14,60 @@ DEFAULT_SETTINGS: Dict[str, Any] = {
     "window_height": 1080,
     "request_max_retries": 3,
     "request_timeout": 10, # seconds
-    "skip_ssl_check_on_error": False, # Note: The interactive skip logic overrides this
+    "skip_ssl_check_on_error": False,
 }
 
-settings: Dict[str, Any] = DEFAULT_SETTINGS.copy() # Start with defaults
+# ========================================
+# Function: load_configuration
+# Description: Loads settings from a YAML file, merges with defaults.
+# ========================================
+def load_configuration(config_path: str = "config.yaml") -> Dict[str, Any]:
+    """
+    Loads settings from a YAML file, merges with defaults.
 
-try:
-    with open("config.yaml", "r") as config_file:
-        config = yaml.safe_load(config_file)
-        loaded_settings = config.get("settings", {}) if config else {}
-        settings.update(loaded_settings) # Update defaults with loaded settings
-except FileNotFoundError:
-    logging.warning("config.yaml not found. Using default settings.")
-    # No exit here, allow running with defaults
-except yaml.YAMLError as e:
-    logging.error(f"CRITICAL: Error parsing config.yaml: {e}. Using default settings.")
-    # No exit here, allow running with defaults, but log critical error
+    Args:
+        config_path: Path to the configuration file.
 
-# --- Configuration Variables (Derived from settings dict) ---
-INPUT_FILE: str = settings["input_file"]
-OUTPUT_BASE_DIR: str = settings["output_base_dir"]
-OUTPUT_SUBFOLDER: str = settings["output_subfolder"]
-LOG_LEVEL_STR: str = settings["log_level"]
-HEADLESS: bool = settings["headless"]
-WINDOW_WIDTH: int = settings["window_width"]
-WINDOW_HEIGHT: int = settings["window_height"]
-REQUEST_MAX_RETRIES: int = settings["request_max_retries"]
-REQUEST_TIMEOUT: int = settings["request_timeout"]
-SKIP_SSL_CHECK_ON_ERROR: bool = settings["skip_ssl_check_on_error"] # Retained for potential future non-interactive use
+    Returns:
+        A dictionary containing the final configuration settings.
+    """
+    settings = DEFAULT_SETTINGS.copy() # Start with defaults
+    try:
+        with open(config_path, "r") as config_file:
+            config = yaml.safe_load(config_file)
+            loaded_settings = config.get("settings", {}) if config else {}
+            settings.update(loaded_settings) # Update defaults with loaded settings
+        logging.debug(f"Configuration loaded successfully from {config_path}")
+    except FileNotFoundError:
+        # Log the warning here during the load attempt
+        logging.warning(f"{config_path} not found. Using default settings.")
+    except yaml.YAMLError as e:
+        # Log the error here during the load attempt
+        logging.error(f"Error parsing {config_path}: {e}. Using default settings.")
+    except Exception as e:
+        # Catch other potential file reading errors
+        logging.error(f"Error reading {config_path}: {e}. Using default settings.")
 
-
-# --- Configure logging ---
+    logging.info(f"Final settings loaded: {settings}") # Log the actual settings being used
+    return settings
 
 # ========================================
 # Function: setup_logging
-# Description: Configures the root logger based on settings.
+# Description: Configures the root logger based on the provided level string.
 # ========================================
-def setup_logging():
-    """Configures the root logger based on settings."""
-    log_level: int = getattr(logging, LOG_LEVEL_STR.upper(), logging.INFO)
-    logging.basicConfig(level=log_level, format='%(asctime)s - %(levelname)s - %(message)s')
-    logging.info(f"Logging configured to level: {LOG_LEVEL_STR.upper()}")
-    logging.info(f"Loaded settings: {settings}") # Log the actual settings being used
+def setup_logging(log_level_str: str):
+    """
+    Configures the root logger based on the provided level string.
 
-# Call setup_logging() immediately when this module is imported
-# setup_logging() # Commented out - Better to call explicitly in main.py after colorama init
+    Args:
+        log_level_str: The desired logging level (e.g., "INFO", "DEBUG").
+    """
+    log_level: int = getattr(logging, log_level_str.upper(), logging.INFO)
+    # Ensure basicConfig is only called once if possible, or configure root logger properties
+    # For simplicity here, we'll keep basicConfig, but in complex apps, might get logger and set level/handlers
+    logging.basicConfig(level=log_level, format='%(asctime)s - %(levelname)s - %(message)s', force=True) # Use force=True if re-configuring
+    logging.info(f"Logging configured to level: {log_level_str.upper()}")
+
+# Note: Global variables like INPUT_FILE, HEADLESS etc. are removed.
+# They will be accessed from the settings dictionary returned by load_configuration()
+# in the main script where they are needed.
