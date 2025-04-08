@@ -2,6 +2,8 @@
 # src/main.py
 import os
 import logging
+import time # Import time for delay
+import random # Import random for User-Agent
 from datetime import datetime
 from typing import Optional, List, Dict, Any
 
@@ -13,105 +15,110 @@ from webdriver_manager.chrome import ChromeDriverManager
 from colorama import init, Fore, Style
 
 # --- Import project modules ---
-# Initialize colorama *before* other modules that might use it (like file_io for prompts)
 init(autoreset=True)
-
-# Now import other modules
-from . import config_loader # Import config first to load settings
+from .config_loader import load_configuration, setup_logging, DEFAULT_SETTINGS
 from .file_io import read_input_file, write_to_csv, sanitise_domain
 from .orchestrator import extract_metadata
-# Import config variables directly from the loaded config_loader module
-from .config_loader import (
-    INPUT_FILE, OUTPUT_BASE_DIR, OUTPUT_SUBFOLDER, HEADLESS,
-    WINDOW_WIDTH, WINDOW_HEIGHT, setup_logging
-)
-
-# --- Main Execution ---
 
 # ========================================
-# Function: main
+# Function: main (Updated)
 # Description: Main script execution function.
 # ========================================
 def main() -> None:
     """Main script execution function."""
-    # Setup logging after colorama init
-    setup_logging() # Explicitly call logging setup
-    logging.info("Script starting.")
+    # --- Load Configuration and Setup Logging ---
+    settings = load_configuration("config.yaml")
+    log_level_str = settings.get("log_level", DEFAULT_SETTINGS["log_level"])
+    setup_logging(log_level_str)
 
-    # --- Read Input File (includes interactive prompt if needed) ---
-    urls = read_input_file(INPUT_FILE)
+    logging.info("Script starting.")
+    logging.debug(f"Using settings (values might be truncated):")
+    for key, value in settings.items():
+         logging.debug(f"  {key}: {str(value)[:100]}{'...' if len(str(value)) > 100 else ''}")
+
+
+    # --- Get required settings ---
+    input_file = settings.get("input_file", DEFAULT_SETTINGS["input_file"])
+    output_base_dir = settings.get("output_base_dir", DEFAULT_SETTINGS["output_base_dir"])
+    output_subfolder = settings.get("output_subfolder", DEFAULT_SETTINGS["output_subfolder"])
+    headless_mode = settings.get("headless", DEFAULT_SETTINGS["headless"])
+    window_width = settings.get("window_width", DEFAULT_SETTINGS["window_width"])
+    window_height = settings.get("window_height", DEFAULT_SETTINGS["window_height"])
+    user_agents = settings.get("user_agents", DEFAULT_SETTINGS["user_agents"]) # Get UA list
+    inter_request_delay = settings.get("delay_between_requests_seconds", DEFAULT_SETTINGS["delay_between_requests_seconds"]) # Get delay
+
+    # --- Read Input File ---
+    urls = read_input_file(input_file)
     if not urls:
         logging.critical("No valid URLs found or provided. Exiting.")
-        print(Fore.RED + "Error: No valid URLs found. Check input file and logs, or provide path when prompted.")
-        return # Exit if no URLs
+        print(Fore.RED + "Error: No valid URLs found.")
+        return
 
-    # --- User prompt for number of URLs (optional) ---
-    num_to_process = 0 # Default to all
+    # --- User prompt for number of URLs ---
+    # (Existing prompt logic...)
+    num_to_process = 0
     try:
         prompt = (f"{Fore.CYAN}Found {len(urls)} URLs. "
                   f"How many do you want to process? (Enter 0 or leave blank for all): {Style.RESET_ALL}")
         num_to_process_str = input(prompt).strip()
-
-        if num_to_process_str: # Only parse if input is not empty
+        if num_to_process_str:
             num_to_process = int(num_to_process_str)
-            if num_to_process < 0:
-                 logging.warning("Negative number entered, processing all URLs.")
-                 num_to_process = 0 # Treat negative as 0 (all)
-            elif num_to_process == 0:
-                 logging.info("Processing all URLs as requested (0 entered).")
-            elif num_to_process > len(urls):
-                 logging.warning(f"Number entered ({num_to_process}) is more than available URLs ({len(urls)}). Processing all.")
-                 num_to_process = 0 # Process all if number > available
-            else:
+            if 0 < num_to_process < len(urls):
                  urls = urls[:num_to_process]
                  logging.info(f"Processing the first {len(urls)} URLs as requested.")
+            elif num_to_process <= 0:
+                 logging.info("Processing all URLs (0 or negative entered).")
+            else: # num_to_process >= len(urls)
+                 logging.info(f"Number entered >= available URLs. Processing all {len(urls)} URLs.")
         else:
              logging.info("Processing all URLs (no number entered).")
-             num_to_process = 0 # Explicitly set to 0 for clarity
-
     except ValueError:
         logging.warning("Invalid input for number of URLs, processing all.")
-        num_to_process = 0 # Process all if input is not a valid integer
     except EOFError:
         logging.warning("Input stream closed during prompt, processing all URLs.")
-        num_to_process = 0 # Process all if input stream closes
 
 
     # --- Setup Output Path ---
-    output_dir = os.path.join(OUTPUT_BASE_DIR, OUTPUT_SUBFOLDER)
+    # (Existing output path logic...)
+    output_dir = os.path.join(output_base_dir, output_subfolder)
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    # Use first URL for filename base, handle case where urls might be empty after filtering
     first_url_for_filename = urls[0] if urls else "no_urls_processed"
     sanitised_domain = sanitise_domain(first_url_for_filename)
     output_csv_file = f"page_details_{sanitised_domain}_{timestamp}.csv"
     output_path = os.path.join(output_dir, output_csv_file)
     logging.info(f"Output CSV will be saved to: {output_path}")
 
+
     # --- Configure Selenium WebDriver ---
     options = Options()
-    if HEADLESS:
-        options.add_argument('--headless=new') # Use modern headless
+    if headless_mode:
+        options.add_argument('--headless=new')
         logging.info("Running WebDriver in headless mode.")
     else:
         logging.info("Running WebDriver in headed mode.")
-    options.add_argument('--disable-gpu') # Often needed for headless
-    options.add_argument('--no-sandbox') # Often needed in containerized/CI environments
-    options.add_argument('--disable-dev-shm-usage') # Overcomes limited resource problems
-    options.add_argument(f'--window-size={WINDOW_WIDTH},{WINDOW_HEIGHT}')
-    # Suppress DevTools listening message (can clutter logs)
+    options.add_argument('--disable-gpu')
+    options.add_argument('--no-sandbox')
+    options.add_argument('--disable-dev-shm-usage')
+    options.add_argument(f'--window-size={window_width},{window_height}')
     options.add_experimental_option('excludeSwitches', ['enable-logging'])
 
+    # --- NEW: Add User-Agent Rotation ---
+    selected_ua = None
+    if user_agents: # Check if list is not empty
+        selected_ua = random.choice(user_agents)
+        options.add_argument(f'user-agent={selected_ua}')
+        logging.info(f"Using User-Agent: {selected_ua}")
+    else:
+        logging.info("No User-Agents configured, using default.")
+    # --- End NEW ---
 
-    driver: Optional[webdriver.Chrome] = None # Initialize driver variable
+    driver: Optional[webdriver.Chrome] = None
     metadata_list: List[Dict[str, Any]] = []
-    # --- Initialize SSL decision state ---
-    # This dictionary will be passed around and potentially modified by fetch_http_status_and_type
     ssl_decision: Dict[str, bool] = {"skip_all": False}
 
     try:
         logging.info("Initializing WebDriver...")
         print(Fore.YELLOW + "Initializing WebDriver (this might take a moment)...")
-        # Ensure the driver is downloaded/updated
         try:
              driver_path = ChromeDriverManager().install()
              service = Service(driver_path)
@@ -120,17 +127,16 @@ def main() -> None:
              print(Fore.GREEN + "WebDriver initialized.")
         except Exception as wd_init_error:
              logging.critical(f"Failed to initialize WebDriver: {wd_init_error}", exc_info=True)
-             print(Fore.RED + f"CRITICAL ERROR: Failed to initialize WebDriver. Check internet connection and ChromeDriver compatibility.")
-             print(Fore.RED + f"Error details: {wd_init_error}")
-             return # Cannot proceed without driver
+             print(Fore.RED + f"CRITICAL ERROR: Failed to initialize WebDriver: {wd_init_error}")
+             return
 
 
         # --- Process URLs ---
         total_urls = len(urls)
         for idx, url in enumerate(urls, start=1):
             print(Style.BRIGHT + Fore.GREEN + f"\nProcessing ({idx}/{total_urls}): {url}" + Style.RESET_ALL)
-            # Pass the ssl_decision dictionary down - it might be modified inside
-            metadata = extract_metadata(url, driver, ssl_decision)
+            # --- Pass the full settings dictionary to the orchestrator ---
+            metadata = extract_metadata(url, driver, ssl_decision, settings)
             if metadata:
                  metadata_list.append(metadata)
                  if metadata.get("IA error"):
@@ -138,14 +144,20 @@ def main() -> None:
                  else:
                      print(Fore.CYAN + f"  Successfully processed {url}")
             else:
-                 # Should not happen if extract_metadata always returns a dict, but handle defensively
+                 # Should ideally not happen if extract_metadata always returns dict
                  logging.error(f"Critical failure processing {url} - extract_metadata returned None.")
                  metadata_list.append({"Page-URL": url, "IA error": "Critical extraction failure (None returned)"})
                  print(Fore.RED + f"  Critical error processing {url}. Check logs.")
 
+            # --- NEW: Add Inter-Request Delay ---
+            if idx < total_urls and inter_request_delay > 0: # Apply delay after processing, before the next loop iteration (if any)
+                 logging.debug(f"Waiting {inter_request_delay}s before next request...")
+                 time.sleep(inter_request_delay)
+            # --- End NEW ---
 
-        # --- Define CSV Headers (ensure all keys from result_data in orchestrator are here) ---
-        # It's good practice to define this explicitly based on what extract_metadata produces
+
+        # --- Define CSV Headers ---
+        # (Keep existing fieldnames definition...)
         fieldnames = [
             "http-code", "http-type", "Page-URL", "page-slug", "Page-id", "Parent-ID",
             "Title", "Description", "Keywords",
@@ -153,29 +165,29 @@ def main() -> None:
             "Article H1", "Article Headings", "Article Links Internal", "Article Links External",
             "Article Images", "Article Images NoAlt",
             "content-count", "content-ratio",
-            "Parent-URL", # Keep if planning to use later
-            "IA error", # Important for diagnostics
+            "Parent-URL", "IA error",
         ]
 
+
         # --- Write Results ---
+        # (Keep existing write logic...)
         if metadata_list:
              if write_to_csv(output_path, metadata_list, fieldnames):
                  print(Fore.CYAN + Style.BRIGHT + f"\nMetadata successfully saved to: {output_path}")
              else:
-                 print(Fore.RED + Style.BRIGHT + f"\nFailed to save metadata to CSV. Check logs for file path: {output_path}")
+                 print(Fore.RED + Style.BRIGHT + f"\nFailed to save metadata to CSV. Check logs.")
         else:
              print(Fore.YELLOW + "\nNo metadata was collected to write to CSV.")
 
 
     except Exception as e:
-        # Catch broad exceptions in main loop to log them
         logging.critical(f"A critical error occurred in the main script execution: {e}", exc_info=True)
         print(Fore.RED + Style.BRIGHT + f"\n--- A critical error occurred ---")
-        print(Fore.RED + f"Please check the log file for details.")
-        print(Fore.RED + f"Error: {e}")
+        print(Fore.RED + f"Please check the log file for details. Error: {e}")
 
     finally:
         # --- Cleanup ---
+        # (Keep existing cleanup logic...)
         if driver:
             try:
                 logging.info("Attempting to quit WebDriver...")

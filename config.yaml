@@ -1,14 +1,23 @@
-# config.yaml
 settings:
-  input_file: "ask-for-input.txt"
-  output_base_dir: "E:\\python_output"
-  output_subfolder: "_output"
-  log_level: "INFO"  # Can be DEBUG, INFO, WARNING, ERROR, CRITICAL
-  headless: True
+  input_file: "input_urls.txt"
+  output_base_dir: "output"
+  output_subfolder: "metadata_reports"
+  log_level: "INFO"
+  headless: true
   window_width: 1440
   window_height: 1080
+  request_max_retries: 3
+  request_timeout: 10
 
-  # --- New/Updated Settings ---
-  request_max_retries: 3              # Max retries for HTTP HEAD requests
-  request_timeout: 10                 # Timeout in seconds for HTTP HEAD requests
-  skip_ssl_check_on_error: false      # Set to true to automatically skip SSL checks globally if an SSL error occurs on any URL
+  # --- New Options ---
+  scope_selectors_priority: # Order matters! Checks for these selectors. 'article' requires unique match.
+    - "main"
+    - "div[role='main']"
+    # - "#content" # Example custom selector
+    - "article"
+  user_agents: # List of User-Agents to choose from randomly. Leave empty or remove for default.
+    - "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/110.0.0.0 Safari/537.36"
+    - "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.3 Safari/605.1.15"
+    - "Mozilla/5.0 (X11; Linux x86_64; rv:108.0) Gecko/20100101 Firefox/108.0"
+  wait_after_load_seconds: 1 # Wait 1 second after page load state 'complete' before parsing
+  delay_between_requests_seconds: 2 # Wait 2 seconds between processing each URL
