@@ -28,6 +28,8 @@ DEFAULT_SETTINGS: Dict[str, Any] = {
     "output_format": "CSV", # Output format ("CSV" or "JSON")
     "run_in_batches": False, # Process URLs in batches interactively
     "batch_size": 50,      # Default number of URLs per batch if batching enabled
+    "chromedriver_path": "", # Optional: Full path to manually downloaded chromedriver executable
+    
 }
 
 # ========================================
@@ -100,6 +102,11 @@ def load_configuration(config_path: str = "config.yaml") -> Dict[str, Any]:
         settings["output_format"] = "CSV"
     else:
         settings["output_format"] = str(output_format).upper() # Standardize case
+
+    # chromedriver_path just needs to be a string (or empty/None)
+    if "chromedriver_path" in settings and not isinstance(settings["chromedriver_path"], str):
+         logging.warning(f"Invalid non-string value for 'chromedriver_path'. Using default.")
+         settings["chromedriver_path"] = DEFAULT_SETTINGS["chromedriver_path"]
 
     # --- Logging Final Settings ---
     logging.info(f"Final settings loaded (some values might be truncated):")
