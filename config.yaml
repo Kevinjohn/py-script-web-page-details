@@ -7,7 +7,7 @@ settings:
   output_format: "CSV"               # Output format: "CSV" or "JSON"
 
   # --- Logging ---
-  log_level: "INFO"                  # Logging level: DEBUG, INFO, WARNING, ERROR, CRITICAL
+  log_level: "CRITICAL"                  # Logging level: DEBUG, INFO, WARNING, ERROR, CRITICAL
 
   # --- Browser/Fetching ---
   headless: true                     # Run Chrome in headless mode (true/false)
@@ -26,6 +26,7 @@ settings:
     - "main"
     - "div[role='main']"
     - "#main"                   # Example: Add custom selectors here if needed
+    - "#content"                   # Example: Add custom selectors here if needed
     - "article"
   wait_after_load_seconds: 1         # Wait N seconds after page load state 'complete' before parsing. Set to 0 to disable.
   delay_between_requests_seconds: 2  # Wait N seconds between processing each URL. Set to 0 to disable.
