@@ -33,7 +33,7 @@ settings:
   # --- Batch Processing ---
   run_in_batches: false              # Set to true to enable interactive batch processing
   batch_size: 25                     # Default number of URLs per batch if batching is enabled
-  start_from: 0                      # Incase you need to restart / functionality not yet built out  
+  start_at: 0                      # Incase you need to restart / functionality not yet built out  
 
   # --- Backup Chrome Driver ---
   chromedriver_path: "/usr/local/Caskroom/chromedriver/135.0.7049.84/chromedriver-mac-x64/chromedriver" # Use the FULL path

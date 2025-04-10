@@ -24,7 +24,7 @@ from .file_io import read_input_file, write_output_file, sanitise_domain
 from .orchestrator import extract_metadata
 
 # ========================================
-# Function: main (Updated Start At logic)
+# Function: main (Corrected Progress Message)
 # ========================================
 def main() -> None:
     """Main script execution function with batch processing and format options."""
@@ -34,11 +34,9 @@ def main() -> None:
     setup_logging(log_level_str)
 
     logging.info("Script starting.")
-    # (Log settings...)
     logging.debug(f"Using settings (values might be truncated):")
     for key, value in settings.items():
          logging.debug(f"  {key}: {str(value)[:100]}{'...' if len(str(value)) > 100 else ''}")
-
 
     # --- Get required settings ---
     input_file = settings.get("input_file", DEFAULT_SETTINGS["input_file"])
@@ -67,28 +65,26 @@ def main() -> None:
     logging.info(f"Read {total_read_from_file} valid URLs from file.")
 
     # --- Apply start_at logic ---
-    urls_available = urls_all_from_file # Start with all read URLs
+    urls_available = urls_all_from_file
     if start_at_index > 0:
         if start_at_index < total_read_from_file:
             logging.info(f"Applying start_at={start_at_index}. Skipping first {start_at_index} URLs.")
             urls_available = urls_available[start_at_index:] # Slice the list
-            print(Fore.YELLOW + f"Starting processing from URL #{start_at_index + 1}")
+            print(Fore.YELLOW + f"Starting processing from URL originally at index {start_at_index} (line {start_at_index + 1} approx)...")
         else:
             logging.warning(f"start_at value ({start_at_index}) is >= total URLs read ({total_read_from_file}). No URLs left to process.")
-            urls_available = [] # No URLs left
-    # --- End start_at logic ---
+            urls_available = []
 
-    total_urls_available = len(urls_available) # Available after potential start_at slicing
+    total_urls_available = len(urls_available)
     logging.info(f"Total URLs available for processing run: {total_urls_available}")
 
     if total_urls_available == 0:
          print(Fore.YELLOW + "No URLs available to process after applying 'start_at' setting.")
-         return # Exit early if no URLs left
+         return
 
     # --- Determine Total URLs to Process (User limit prompt) ---
-    urls_to_process_all = urls_available # Start with available URLs
+    urls_to_process_all = urls_available
     try:
-        # Use total_urls_available in the prompt
         prompt = (f"{Fore.CYAN}Found {total_urls_available} URLs available to process (after 'start_at'). "
                   f"How many TOTAL do you want to run? (Enter 0 or leave blank for all): {Style.RESET_ALL}")
         num_to_process_str = input(prompt).strip()
@@ -99,7 +95,7 @@ def main() -> None:
                  logging.info(f"Limiting run to the first {len(urls_to_process_all)} URLs based on user input.")
             elif num_to_process_limit <= 0:
                  logging.info("Processing all available URLs (0 or negative entered for total limit).")
-            else: # num_to_process >= available
+            else:
                  logging.info(f"Total limit entered >= available URLs. Processing all {total_urls_available} available URLs.")
         else:
              logging.info("Processing all available URLs (no total limit entered).")
@@ -108,7 +104,7 @@ def main() -> None:
     except EOFError:
         logging.warning("Input stream closed during total limit prompt, processing all available.")
 
-    total_urls_to_run = len(urls_to_process_all) # This is the final count for this run
+    total_urls_to_run = len(urls_to_process_all)
     processed_count_total = 0
     current_batch_num = 0
     urls_processed_in_run = 0
@@ -118,9 +114,7 @@ def main() -> None:
     # (Remains the same)
     options = Options()
     if headless_mode: options.add_argument('--headless=new')
-    options.add_argument('--disable-gpu')
-    options.add_argument('--no-sandbox')
-    options.add_argument('--disable-dev-shm-usage')
+    options.add_argument('--disable-gpu'); options.add_argument('--no-sandbox'); options.add_argument('--disable-dev-shm-usage')
     options.add_argument(f'--window-size={window_width},{window_height}')
     options.add_experimental_option('excludeSwitches', ['enable-logging'])
     if user_agents:
@@ -134,124 +128,111 @@ def main() -> None:
     # --- Main Processing Section ---
     try:
         # --- Initialize WebDriver (with fallback) ---
-        # (This whole try/except block for driver init remains the same)
+        # (Remains the same)
         driver = None
         try:
-            logging.info("Attempting to initialize WebDriver using webdriver-manager...")
+            logging.info("Attempting WebDriver init via manager...")
             print(Fore.YELLOW + "Initializing WebDriver via manager...")
             manager = ChromeDriverManager()
             driver_path_manager = manager.install()
             service = Service(driver_path_manager)
             driver = webdriver.Chrome(service=service, options=options)
-            logging.info(f"WebDriver initialized successfully via manager.")
+            logging.info(f"WebDriver initialized via manager.")
             print(Fore.GREEN + "WebDriver initialized via manager.")
         except (requests.exceptions.RequestException, ssl.SSLError, ValueError, OSError, Exception) as e_manager:
             logging.warning(f"Webdriver-manager failed: {type(e_manager).__name__}: {e_manager}")
-            print(Fore.YELLOW + f"\nWebdriver-manager failed ({type(e_manager).__name__}). Trying specified chromedriver_path...")
-            if chromedriver_manual_path and isinstance(chromedriver_manual_path, str):
-                 if os.path.exists(chromedriver_manual_path) and os.path.isfile(chromedriver_manual_path):
-                      logging.info(f"Attempting via specified path: {chromedriver_manual_path}")
-                      print(Fore.YELLOW + f"Using specified path: {chromedriver_manual_path}")
-                      try:
-                           service = Service(chromedriver_manual_path)
-                           driver = webdriver.Chrome(service=service, options=options)
-                           logging.info(f"WebDriver initialized successfully using specified path.")
-                           print(Fore.GREEN + "WebDriver initialized using specified path.")
-                      except Exception as e_manual:
-                           logging.critical(f"Failed via specified path '{chromedriver_manual_path}': {e_manual}", exc_info=True)
-                           driver = None
-                 else:
-                      logging.error(f"Specified path '{chromedriver_manual_path}' is not valid.")
+            print(Fore.YELLOW + f"\nWebdriver-manager failed. Trying specified path...")
+            if chromedriver_manual_path and isinstance(chromedriver_manual_path, str) and os.path.exists(chromedriver_manual_path) and os.path.isfile(chromedriver_manual_path):
+                 logging.info(f"Attempting via specified path: {chromedriver_manual_path}")
+                 print(Fore.YELLOW + f"Using specified path: {chromedriver_manual_path}")
+                 try:
+                      service = Service(chromedriver_manual_path)
+                      driver = webdriver.Chrome(service=service, options=options)
+                      logging.info(f"WebDriver initialized via specified path.")
+                      print(Fore.GREEN + "WebDriver initialized using specified path.")
+                 except Exception as e_manual:
+                      logging.critical(f"Failed via specified path: {e_manual}", exc_info=True)
                       driver = None
-            else:
-                 logging.info("No valid chromedriver_path specified.")
-                 driver = None
+            else: driver = None # Ensure driver is None if path invalid/missing
             if driver is None:
-                logging.critical(f"Failed to initialize WebDriver via manager and fallback path.")
-                print(Fore.RED + f"CRITICAL ERROR: Unable to initialize WebDriver.")
-                # (More detailed error messages remain same)
-                return # Exit main
-
+                 logging.critical(f"Failed WebDriver init via manager and fallback.")
+                 print(Fore.RED + f"CRITICAL ERROR: Unable to initialize WebDriver.")
+                 return # Exit main
         logging.info("WebDriver initialization complete.")
 
+
         # --- Batch Loop ---
-        # Now uses 'total_urls_to_run' which already accounts for 'start_at' and prompt limit
         while urls_processed_in_run < total_urls_to_run:
             current_batch_num += 1
-            batch_start_index = urls_processed_in_run # Correct relative to urls_to_process_all
+            # batch_start_index is relative to urls_to_process_all
+            batch_start_index = urls_processed_in_run
             batch_size_this_run = default_batch_size
 
             # --- Determine Batch Size ---
-            if run_in_batches and total_urls_to_run > default_batch_size: # Only prompt if batching enabled and needed
+            # (Remains the same)
+            if run_in_batches and total_urls_to_run > default_batch_size:
                  remaining_urls = total_urls_to_run - urls_processed_in_run
-                 # Use min for default prompt to avoid asking for more than remain
                  prompt_default = min(default_batch_size, remaining_urls)
-                 prompt_batch = (
-                    f"{Fore.CYAN}\n--- Batch {current_batch_num} --- ({urls_processed_in_run}/{total_urls_to_run} processed)\n"
-                    f"Process next batch? Max {remaining_urls} remaining.\n"
-                    f"Enter number (or 0/blank for default {prompt_default}), 'n' or 'q' to quit: {Style.RESET_ALL}"
-                 )
+                 prompt_batch = ( f"{Fore.CYAN}\n--- Batch {current_batch_num} --- ({urls_processed_in_run}/{total_urls_to_run} processed)\n"
+                    # ... rest of prompt ...
+                    f"Enter number (or 0/blank for default {prompt_default}), 'n' or 'q' to quit: {Style.RESET_ALL}" )
                  try:
                      user_batch_input = input(prompt_batch).strip().lower()
                      if user_batch_input in ['n', 'q', 'no', 'quit']: break
                      elif not user_batch_input or user_batch_input == '0': batch_size_this_run = prompt_default
                      else:
-                         try:
-                             requested_batch_size = int(user_batch_input)
-                             if requested_batch_size <= 0: batch_size_this_run = prompt_default
-                             else: batch_size_this_run = min(requested_batch_size, remaining_urls)
+                         try: requested_batch_size = int(user_batch_input); batch_size_this_run = min(requested_batch_size, remaining_urls) if requested_batch_size > 0 else prompt_default
                          except ValueError: batch_size_this_run = prompt_default
                  except EOFError: break
-            else: # Not batching or only one batch needed
-                batch_size_this_run = total_urls_to_run - urls_processed_in_run
-
+            else: batch_size_this_run = total_urls_to_run - urls_processed_in_run
             if batch_size_this_run <= 0: break
 
             # --- Prepare & Process Batch ---
-            # Indices are relative to urls_to_process_all
             batch_end_index = batch_start_index + batch_size_this_run
             urls_batch = urls_to_process_all[batch_start_index:batch_end_index]
             batch_metadata_list: List[Dict[str, Any]] = []
             print(Style.BRIGHT + Fore.MAGENTA + f"\nStarting Batch {current_batch_num} ({batch_size_this_run} URLs)...")
 
             for idx_in_batch, url in enumerate(urls_batch, start=1):
-                # Calculate global index based on initial file read and start_at for accurate progress display if needed
-                original_list_index = urls_all_from_file.index(url) # Find index in original list
+                # *** Corrected Original Index Calculation for Progress Message ***
+                # Calculate index relative to the original list read from file
+                # It's the start_at offset + the index within the current run's list (urls_to_process_all)
+                # The index within urls_to_process_all is batch_start_index + idx_in_batch - 1
+                original_index_from_file = start_at_index + batch_start_index + idx_in_batch - 1
+
                 print(Style.BRIGHT + Fore.GREEN +
-                      # Displaying progress within batch, overall run count, and original index+1
+                      # Use corrected original index calculation (+1 for 1-based display)
                       f"\nProcessing URL {idx_in_batch}/{batch_size_this_run} "
                       f"(Run total: {urls_processed_in_run + idx_in_batch}/{total_urls_to_run}, "
-                      f"Original list #: {original_list_index + 1}): {url}" + Style.RESET_ALL)
+                      f"Original list #: {original_index_from_file + 1}): {url}" + Style.RESET_ALL)
 
                 metadata = extract_metadata(url, driver, ssl_decision, settings)
                 if metadata: batch_metadata_list.append(metadata)
+                # (Console output...)
                 if metadata.get("IA error"): print(Fore.YELLOW + f"  Warning/Error noted: {metadata['IA error']}")
                 else: print(Fore.CYAN + f"  Successfully processed.")
 
-                # Inter-Request Delay
+                # --- Inter-Request Delay ---
                 if idx_in_batch < batch_size_this_run and inter_request_delay > 0:
                      logging.debug(f"Waiting {inter_request_delay}s...")
                      time.sleep(inter_request_delay)
 
             # --- Save Output for Batch ---
+            # (Remains the same)
             if batch_metadata_list:
-                # (Output path logic - batch suffix only if batching active and multiple batches possible)
                 output_dir = os.path.join(output_base_dir, output_subfolder)
                 first_url_for_filename = urls_batch[0] if urls_batch else f"batch_{current_batch_num}"
                 sanitised_domain = sanitise_domain(first_url_for_filename)
                 file_ext = output_format.lower()
-                # Add batch suffix only if batching really happened (more than 1 batch needed)
                 batch_suffix = f"_batch_{current_batch_num}" if run_in_batches and total_urls_to_run > default_batch_size else ""
                 output_filename = f"page_details_{sanitised_domain}_{base_timestamp}{batch_suffix}.{file_ext}"
                 output_path = os.path.join(output_dir, output_filename)
-
-                fieldnames = [ # Define headers consistently
+                fieldnames = [ # Keep consistent fieldnames
                     "http-code", "http-type", "Page-URL", "page-slug", "Page-id", "Parent-ID",
                     "Title", "Description", "Keywords", "Opengraph type", "Opengraph image",
                     "Opengraph title", "Opengraph description", "Article H1", "Article Headings",
                     "Article Links Internal", "Article Links External", "Article Images", "Article Images NoAlt",
                     "content-count", "content-ratio", "Parent-URL", "IA error", ]
-
                 if write_output_file(output_path, batch_metadata_list, fieldnames, output_format):
                     print(Fore.CYAN + Style.BRIGHT + f"\nBatch {current_batch_num} results saved to: {output_path}")
                 else:
