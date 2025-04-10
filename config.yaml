@@ -23,11 +23,45 @@ settings:
 
   # --- Parsing & Timing ---
   scope_selectors_priority:          # Order matters! Checks for these selectors for main content. 'article' requires unique match.
+    # Semantic & ARIA (Highest Priority)
     - "main"
     - "div[role='main']"
-    - "#main"                   # Example: Add custom selectors here if needed
-    - "#content"                   # Example: Add custom selectors here if needed
+
+    # Common High-Specificity IDs
+    - "#main"
+    - "#content"
+    - "#primary"       # Often main column alongside #secondary sidebar
+    - "#main-content"
+    - "#main_content"
+    - "#content-area"
+
+    # Common Lower-Specificity IDs (might wrap more than just content)
+    - "#page-content"
+    - "#page"          # Can sometimes be too broad
+
+    # CMS-Specific / Very Common Classes
+    - ".entry-content"  # WordPress posts/pages
+    - ".site-content"   # WordPress main area wrapper
+    - ".page-content"   # General class
+    - ".post-content"   # Blog posts
+    - ".article-content" # Articles
+
+    # Common General Classes (Lower Priority)
+    - ".content"
+    - ".main-content"
+    - ".main-column"
+    - ".content-wrapper"
+    - ".page-body"
+
+    # HTML5 Article (Use cautiously - ensure unique match or specific context)
     - "article"
+
+    # Less Common / Fallbacks (Potentially less precise)
+    # - div[class*="content"] # Use attribute selectors carefully
+    # - div[id*="content"]
+
+
+
   wait_after_load_seconds: 1         # Wait N seconds after page load state 'complete' before parsing. Set to 0 to disable.
   delay_between_requests_seconds: 2  # Wait N seconds between processing each URL. Set to 0 to disable.
 
