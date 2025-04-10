@@ -175,3 +175,7 @@ cython_debug/
 
 # Mac files
 .DS_store
+
+# Input / output files
+input/
+output/
