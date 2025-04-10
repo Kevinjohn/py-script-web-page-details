@@ -29,7 +29,7 @@ DEFAULT_SETTINGS: Dict[str, Any] = {
     "run_in_batches": False, # Process URLs in batches interactively
     "batch_size": 50,      # Default number of URLs per batch if batching enabled
     "chromedriver_path": "", # Optional: Full path to manually downloaded chromedriver executable
-    
+"start_at": 0, # Optional: Skip the first N URLs (0-based index, e.g., 0 starts from first, 1 skips first)    
 }
 
 # ========================================
@@ -63,7 +63,7 @@ def load_configuration(config_path: str = "config.yaml") -> Dict[str, Any]:
     # Numeric settings
     numeric_keys = ["window_width", "window_height", "request_max_retries",
                     "request_timeout", "wait_after_load_seconds",
-                    "delay_between_requests_seconds", "batch_size"]
+                    "delay_between_requests_seconds", "batch_size","start_at"]
     for key in numeric_keys:
         try:
             if key in settings:
