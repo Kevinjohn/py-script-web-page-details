@@ -1,12 +1,13 @@
 # src/html_parsing/html_scope.py
 import logging
-from typing import Optional, List, Any, Dict
+from typing import Optional, List, Any, Dict # Keep Dict for now, change later if function fully changes
 from bs4 import BeautifulSoup
 
 # ========================================
 # Function: find_content_scope
 # Description: Finds the best semantic main content scope selector based on priority list.
 # ========================================
+# (This function remains the same as the last correct version)
 def find_content_scope(soup: BeautifulSoup, priority_list: List[str]) -> Optional[str]:
     """
     Finds the best CSS selector for the main content area based on a priority list.
@@ -63,30 +64,21 @@ def find_content_scope(soup: BeautifulSoup, priority_list: List[str]) -> Optiona
     return None
 
 # ========================================
-# Function: no_semantic_base_html_tag (Placeholder)
-# Description: Handles cases where no primary content scope is identified.
+# Function: no_semantic_base_html_tag (Modified)
+# Description: Logs warning and returns 'body' as the fallback scope selector.
 # ========================================
-def no_semantic_base_html_tag(url: str) -> Dict[str, Any]:
+def no_semantic_base_html_tag(url: str) -> str: # Changed return type hint
     """
-    Placeholder function for when no main semantic tag (based on priority list)
-    is found. Returns default/empty values for scoped metrics.
+    Logs a warning that no primary semantic tag was found and returns 'body'
+    as the fallback scope selector.
 
     Args:
         url: The URL of the page being processed.
 
     Returns:
-        A dictionary with default values for scope-dependent fields and an error message.
+        The string "body" to be used as the CSS selector.
     """
     error_msg = "No primary semantic content tag found matching priority list"
-    logging.warning(f"{error_msg} for URL: {url}")
-    # Return default values for the fields normally extracted from a scope
-    return {
-        "Article H1": "",
-        "Article Headings": 0,
-        "Article Links Internal": 0,
-        "Article Links External": 0,
-        "Article Images": 0,
-        "Article Images NoAlt": 0,
-        "IA error": error_msg, # Set specific error
-        # Add other scope-dependent fields here if any are added later
-    }
+    logging.warning(f"{error_msg}. Falling back to <body> scope for URL: {url}")
+    # NOTE: We still return "body", but the IA error in orchestrator will reflect the *reason*
+    return "body"

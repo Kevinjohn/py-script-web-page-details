@@ -1,7 +1,8 @@
 # tests/html_parsing/test_html_scope.py
 import pytest
 from bs4 import BeautifulSoup
-from unittest.mock import patch # Import patch for mocking logging in one test
+from unittest.mock import patch # Import patch for mocking logging
+import logging # Import logging for verification if needed
 
 # Import functions to test
 from src.html_parsing.html_scope import find_content_scope, no_semantic_base_html_tag
@@ -22,6 +23,7 @@ HTML_WITH_NONE = "<body><header></header><div>Just a div</div><footer></footer><
 DEFAULT_PRIORITY = DEFAULT_SETTINGS["scope_selectors_priority"]
 
 # --- Tests for find_content_scope ---
+# (These tests remain unchanged as the function logic didn't change for success cases)
 
 def test_find_content_scope_main():
     """Tests that <main> tag is preferred."""
@@ -66,38 +68,37 @@ def test_find_content_scope_custom_priority():
     custom_priority = ["article", "main"] # Article first
     assert find_content_scope(soup, priority_list=custom_priority) == "article"
 
-# ========================================
-# Function: test_find_content_scope_invalid_selector_in_list (Corrected)
-# ========================================
-# Use mocker fixture instead of @patch for consistency if preferred, or keep @patch
-@patch('src.html_parsing.html_scope.logging') # Using patch here
+@patch('src.html_parsing.html_scope.logging') # Use patch from unittest.mock
 def test_find_content_scope_invalid_selector_in_list(mock_log): # Renamed arg
     """Tests that invalid CSS selectors in priority list are skipped."""
     soup = BeautifulSoup(HTML_WITH_MAIN, 'html.parser')
-    # Corrected Priority: Invalid selector comes before the target 'main'
-    # Ensure 'header' (which also exists in HTML_WITH_MAIN) is NOT before '!invalid'
-    priority = ["!invalid", "main"] # Just test skipping invalid and finding main
-    # *** Corrected Assertion: Expect 'main' after skipping invalid selector ***
+    priority = ["!invalid", "main"]
     assert find_content_scope(soup, priority_list=priority) == "main"
     # Check that a warning was logged for the invalid selector attempt
     mock_log.warning.assert_called_once()
     assert "Error applying selector '!invalid'" in mock_log.warning.call_args[0][0]
 
 
-# --- Test for no_semantic_base_html_tag ---
+# --- Updated Test for no_semantic_base_html_tag ---
 
-def test_no_semantic_base_html_tag():
-    """Tests the structure and error message from the fallback function."""
+# ========================================
+# Function: test_no_semantic_base_html_tag (Updated)
+# Description: Tests the fallback function logs warning and returns 'body'.
+# ========================================
+@patch('src.html_parsing.html_scope.logging') # Patch logging for this test
+def test_no_semantic_base_html_tag(mock_scope_logging):
+    """Tests the fallback function logs warning and returns 'body'."""
     test_url = "http://example.com/no-scope"
     result = no_semantic_base_html_tag(test_url)
 
-    assert isinstance(result, dict)
-    assert "IA error" in result
-    assert "No primary semantic content tag found" in result["IA error"]
-    # Check that scope-dependent fields have default values
-    assert result.get("Article H1") == ""
-    assert result.get("Article Headings") == 0
-    assert result.get("Article Links Internal") == 0
-    assert result.get("Article Links External") == 0
-    assert result.get("Article Images") == 0
-    assert result.get("Article Images NoAlt") == 0
+    # Assert it returns the string 'body'
+    assert isinstance(result, str)
+    assert result == "body"
+
+    # Assert that the warning was logged correctly
+    mock_scope_logging.warning.assert_called_once()
+    # Check the content of the log message
+    log_message = mock_scope_logging.warning.call_args[0][0] # Get first positional arg passed to warning()
+    assert "No primary semantic content tag found" in log_message
+    assert "Falling back to <body> scope" in log_message
+    assert test_url in log_message
