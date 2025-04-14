@@ -1,14 +1,77 @@
-# config.yaml
+# Example configuration for the Web Page Metadata Extractor script
 settings:
-  input_file: "ask-for-input.txt"
-  output_base_dir: "E:\\python_output"
-  output_subfolder: "_output"
-  log_level: "INFO"  # Can be DEBUG, INFO, WARNING, ERROR, CRITICAL
-  headless: True
-  window_width: 1440
-  window_height: 1080
+  # --- Input/Output ---
+  input_file: "input_urls.txt"         # Path to the file containing URLs (TXT or CSV auto-detected)
+  output_base_dir: "output"          # Base directory for output files
+  output_subfolder: "metadata_reports" # Subfolder within output_base_dir
+  output_format: "CSV"               # Output format: "CSV" or "JSON"
 
-  # --- New/Updated Settings ---
-  request_max_retries: 3              # Max retries for HTTP HEAD requests
-  request_timeout: 10                 # Timeout in seconds for HTTP HEAD requests
-  skip_ssl_check_on_error: false      # Set to true to automatically skip SSL checks globally if an SSL error occurs on any URL
+  # --- Logging ---
+  log_level: "CRITICAL"                  # Logging level: DEBUG, INFO, WARNING, ERROR, CRITICAL
+
+  # --- Browser/Fetching ---
+  headless: true                     # Run Chrome in headless mode (true/false)
+  window_width: 1440                 # Browser window width if not headless
+  window_height: 1080                # Browser window height if not headless
+  request_max_retries: 3             # Max retries for initial HEAD request if connection fails
+  request_timeout: 12                # Timeout in seconds for initial HEAD request
+  user_agents: # List of User-Agents to choose from randomly. Leave empty or comment out for default.
+    - "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/110.0.0.0 Safari/537.36"
+    - "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.3 Safari/605.1.15"
+    - "Mozilla/5.0 (X11; Linux x86_64; rv:108.0) Gecko/20100101 Firefox/108.0"
+  # skip_ssl_check_on_error: false   # Usually handled by interactive prompt if applicable
+
+  # --- Parsing & Timing ---
+  scope_selectors_priority:          # Order matters! Checks for these selectors for main content. 'article' requires unique match.
+    # Semantic & ARIA (Highest Priority)
+    - "main"
+    - "div[role='main']"
+
+    # Common High-Specificity IDs
+    - "#main"
+    - "#content"
+    - "#primary"       # Often main column alongside #secondary sidebar
+    - "#main-content"
+    - "#main_content"
+    - "#content-area"
+
+    # Common Lower-Specificity IDs (might wrap more than just content)
+    - "#page-content"
+    - "#page"          # Can sometimes be too broad
+
+    # CMS-Specific / Very Common Classes
+    - ".entry-content"  # WordPress posts/pages
+    - ".site-content"   # WordPress main area wrapper
+    - ".page-content"   # General class
+    - ".post-content"   # Blog posts
+    - ".article-content" # Articles
+
+    # Common General Classes (Lower Priority)
+    - ".content"
+    - ".main-content"
+    - ".main-column"
+    - ".content-wrapper"
+    - ".page-body"
+
+    # HTML5 Article (Use cautiously - ensure unique match or specific context)
+    - "article"
+
+    # Less Common / Fallbacks (Potentially less precise)
+    # - div[class*="content"] # Use attribute selectors carefully
+    # - div[id*="content"]
+
+
+
+  wait_after_load_seconds: 1         # Wait N seconds after page load state 'complete' before parsing. Set to 0 to disable.
+  delay_between_requests_seconds: 2  # Wait N seconds between processing each URL. Set to 0 to disable.
+
+  # --- Batch Processing ---
+  run_in_batches: false              # Set to true to enable interactive batch processing
+  batch_size: 25                     # Default number of URLs per batch if batching is enabled
+  start_at: 0                      # Incase you need to restart / functionality not yet built out  
+
+  # --- Backup Chrome Driver ---
+  chromedriver_path: "/usr/local/Caskroom/chromedriver/135.0.7049.84/chromedriver-mac-x64/chromedriver" # Use the FULL path
+  chromedriver_path_lin: "/usr/local/bin/chromedriver" # Use the FULL path for Linux
+  chromedriver_path_mac: "/usr/local/bin/chromedriver" # Use the FULL path for Mac
+  chromedriver_path_win: "/Users/yourname/drivers/chromedriver" # Use the FULL path for Windown

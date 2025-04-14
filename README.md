@@ -1,196 +1,120 @@
-# py-script-web-page-details
-
-
 # Web Page Metadata Extractor
 
-This Python script extracts metadata from web pages. It uses libraries like `requests`, `BeautifulSoup4`, and `Selenium` to fetch web pages, parse their HTML, and extract information such as titles, descriptions, headings, links, and more.
+## Description
 
-## Table of Contents
+This Python script iterates through a list of URLs provided in an input file (`input_urls.txt` or `.csv`). For each URL, it fetches the page using Selenium, extracts various metadata elements (like title, meta description, headings, link counts, image counts), and saves the collected data into a timestamped CSV or JSON file.
 
-1.  [Project Description](#project-description)
-2.  [Getting Started](#getting-started)
-    * [Prerequisites](#prerequisites)
-    * [Installation](#installation)
-3.  [Configuration](#configuration)
-4.  [Usage](#usage)
-5.  [File Structure](#file-structure)
-6.  [Running Tests](#running-tests)
-7.  [Contributing](#contributing)
-8.  [License](#license)
+The script attempts to dynamically find the main content area based on a configurable priority list of CSS selectors (defaulting to `main`, `div[role='main']`, or a single `article`). It supports User-Agent rotation, configurable waits, rate limiting between requests, optional starting offset, batch processing, and fallback to a manually specified ChromeDriver path.
 
-## 1. Project Description <a name="project-description"></a>
+It is designed with modularity in mind, separating concerns like configuration, URL utilities, web interaction, HTML parsing (scope finding, metadata, content, page attributes), and file I/O into different modules.
 
-This project provides a Python script to automate the extraction of metadata from a list of URLs. Metadata is "data about data," and in the context of web pages, it includes information embedded in the HTML that describes the page's content. This script can be useful for:
+## Features
 
-* SEO analysis: Gathering data about page titles, descriptions, and keywords.
-* Content analysis: Counting headings, links, and images on a page.
-* Data collection: Building a dataset of web page information.
+* Reads configuration from `config.yaml`.
+* Reads URLs from `.txt` or `.csv` files (auto-detects format).
+* **Optional `start_at`** setting to skip initial URLs.
+* Uses Selenium (with Chrome) to render pages and extract data.
+* **Optional fallback** to manually specified `chromedriver_path` if `webdriver-manager` fails.
+* Rotates User-Agents randomly from a configured list.
+* Handles potential SSL certificate errors interactively (during initial HEAD request).
+* Dynamically finds main content scope based on a configurable selector priority list (falls back to `<body>`).
+* Extracts common metadata: Title, Description, Keywords, OpenGraph tags.
+* Analyzes content within the determined scope for: H1, heading counts, internal/external links, images with/without alt text.
+* Includes configurable delays after page load and between requests (rate limiting).
+* **Optional interactive batch processing** with configurable default batch size.
+* Saves results to **CSV or JSON** format (configurable).
+* Creates timestamped output files (one per run, or per batch if batching is active).
+* Provides console feedback during processing.
+* Includes visual separators in the source code for enhanced readability.
 
-The script takes a list of URLs as input, processes each URL, and saves the extracted metadata to a CSV (Comma Separated Values) file. CSV files can be easily opened in spreadsheet applications like Excel or Google Sheets.
+## Setup and Installation
 
-## 2. Getting Started <a name="getting-started"></a>
-
-### 2.1 Prerequisites <a name="prerequisites"></a>
-
-Before you can run this script, you need to make sure you have the following software installed on your computer:
-
-* **Python:** This script is written in Python. You'll need Python 3.x installed. You can download Python from the official website: \[https://www.python.org/downloads/\](https://www.python.org/downloads/)
-
-    * To check if you have Python installed, open your terminal or command prompt and type:
-
-        ```bash
-        python --version
-        ```
-
-        or
-
-        ```bash
-        python3 --version
-        ```
-
-    * This should display the Python version. If you get an error, Python is not installed or not added to your system's PATH.
-
-* **pip:** Python comes with `pip`, which is a package installer. We'll use `pip` to install the necessary Python libraries.
-
-    * To check if you have pip installed, type in your terminal:
-
-        ```bash
-        pip --version
-        ```
-
-        or
-
-        ```bash
-        pip3 --version
-        ```
-
-* **Google Chrome:** This script uses Selenium to automate web browser actions, and it's currently configured to use Google Chrome. Please ensure you have Google Chrome installed. You can download it from: \[https://www.google.com/chrome/\](https://www.google.com/chrome/)
-
-### 2.2 Installation <a name="installation"></a>
-
-Follow these steps to set up the project:
-
-1.  **Clone the Repository (Download the Code):**
-
-    * If you're familiar with Git, you can clone the repository to your local machine. Open your terminal, navigate to the directory where you want to save the project, and type:
-
-        ```bash
-        git clone [repository URL]  # Replace [repository URL] with the actual URL
-        ```
-
-    * If you don't use Git, you can download the project as a ZIP file from the repository hosting service (e.g., GitHub, GitLab) and extract it to a folder on your computer.
-
-2.  **Navigate to the Project Directory:**
-
-    * Use the `cd` command in your terminal to go into the project's main folder. For example, if the folder is named `web-metadata-extractor`, type:
-
-        ```bash
-        cd web-metadata-extractor
-        ```
-
-3.  **Create a Virtual Environment (Recommended):**
-
-    * A virtual environment creates an isolated Python environment for your project. This helps to avoid conflicts with other Python projects on your system.
-    * To create a virtual environment, type:
-
-        ```bash
-        python -m venv venv  # This creates a folder named "venv" (you can name it differently)
-        ```
-
-    * Activate the virtual environment:
-        * On macOS and Linux:
-
-            ```bash
-            source venv/bin/activate
-            ```
-
-        * On Windows:
-
-            ```bash
-            venv\Scripts\activate
-            ```
-
-    * Once activated, you'll see the virtual environment's name (e.g., `(venv)`) at the beginning of your terminal prompt.
-
-4.  **Install the Required Libraries:**
-
-    * We'll use `pip` to install the libraries that the script needs. The list of libraries is specified in the `requirements.txt` file.
-    * Make sure your virtual environment is activated (if you created one), and then type:
-
-        ```bash
-        pip install -r requirements.txt
-        ```
-
-    * This will install libraries like:
-        * `selenium`: For automating web browsers.
-        * `webdriver_manager`: To automatically manage the ChromeDriver (used by Selenium).
-        * `beautifulsoup4`: For parsing HTML.
-        * `requests`: For making HTTP requests.
-        * `colorama`: For adding color to terminal output.
-        * `PyYAML`: For reading the configuration file.
-
-## 3. Configuration <a name="configuration"></a>
-
-The script's settings are managed in a `config.yaml` file. This makes it easy to change parameters without modifying the code directly.
-
-* **`config.yaml`:**
-
-    ```yaml
-    settings:
-      input_file: "ask-for-input.txt"       # Default file containing URLs
-      output_base_dir: "E:\\python_output"   # Base directory for output CSV files
-      output_subfolder: "_output"           # Subfolder within the base directory
-      log_level: "ERROR"                   # Logging level (e.g., DEBUG, INFO, ERROR)
-      headless: True                       # Run Chrome in headless mode (no GUI)
-      window_width: 1440                   # Browser window width
-      window_height: 1080                  # Browser window height
+1.  **Clone the Repository (Example):**
+    ```bash
+    git clone <your-repository-url>
+    cd <your-repository-directory>
     ```
 
-    * **`input_file`:** The name of the text file containing the list of URLs to process (one URL per line). If this file is not found, the script will prompt you to enter a valid file path.
-    * **`output_base_dir`:** The main directory where the output CSV files will be saved.
-    * **`output_subfolder`:** A subdirectory within `output_base_dir` to organize the output files.
-    * **`log_level`:** Controls the verbosity of logging messages.  `ERROR` means only error messages are shown.  Other options include `DEBUG`, `INFO`, `WARNING`, and `CRITICAL`.
-    * **`headless`:** If set to `True`, Chrome will run in "headless" mode, meaning it won't open a visible browser window. This is useful for running the script in the background. If set to `False`, you will see the Chrome browser window open and navigate to the pages.
-    * **`window_width`** and **`window_height`:** Sets the size of the Chrome browser window. This can be important for how websites render.
+2.  **Create and Activate Virtual Environment (Recommended):**
+    ```bash
+    # Windows
+    python -m venv venv
+    .\venv\Scripts\activate
 
-**Important:** Update the `output_base_dir` in `config.yaml` to a directory that exists on your system.
+    # macOS / Linux
+    python3 -m venv venv
+    source venv/bin/activate
+    ```
 
-## 4. Usage <a name="usage"></a>
+3.  **Install Dependencies:**
+    ```bash
+    pip install -r requirements.txt
+    ```
+    *(This will install all libraries listed in `requirements.txt`, including `pytest-mock` if you are running tests)*
 
-1.  **Prepare the Input File:**
+4.  **Configure `config.yaml`:**
+    Create a file named `config.yaml` in the project root. This file controls the script's behavior. Here's an example configuration including all current options:
+    ```yaml
+    # Example configuration for the Web Page Metadata Extractor script
+    settings:
+      # --- Input/Output ---
+      input_file: "input_urls.txt"         # Path to file with URLs (TXT or CSV auto-detected)
+      output_base_dir: "output"          # Base directory for output files
+      output_subfolder: "metadata_reports" # Subfolder within output_base_dir
+      output_format: "CSV"               # Output format: "CSV" or "JSON"
 
-    * Create a text file (e.g., `urls.txt`) with one URL per line. For example:
+      # --- Logging ---
+      log_level: "INFO"                  # DEBUG, INFO, WARNING, ERROR, CRITICAL
 
-        ```text
-        [https://www.example.com/page1](https://www.example.com/page1)
-        [https://www.example.com/page2](https://www.google.com/search?q=https://www.example.com/page2)
-        [https://www.example.org/blog](https://www.google.com/search?q=https://www.example.org/blog)
-        ```
+      # --- Browser/Fetching ---
+      headless: true                     # Run Chrome in headless mode (true/false)
+      window_width: 1440                 # Browser window width if not headless
+      window_height: 1080                # Browser window height if not headless
+      request_max_retries: 3             # Max retries for initial HEAD request if connection fails
+      request_timeout: 10                # Timeout in seconds for initial HEAD request
+      user_agents: # List of User-Agents to choose from randomly. Leave empty or comment out for default.
+        - "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/110.0.0.0 Safari/537.36"
+        - "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.3 Safari/605.1.15"
+        - "Mozilla/5.0 (X11; Linux x86_64; rv:108.0) Gecko/20100101 Firefox/108.0"
+      # skip_ssl_check_on_error: false   # Usually handled by interactive HEAD request prompt if applicable
+      chromedriver_path: ""              # Optional: FULL path to specific chromedriver executable if webdriver-manager fails or is bypassed. Leave empty to rely on manager first.
 
-    * Make sure the file name matches the `input_file` setting in `config.yaml` (or be prepared to provide the correct file path when prompted).
+      # --- Parsing & Timing ---
+      scope_selectors_priority:          # Order matters! Checks for these selectors for main content. 'article' requires unique match.
+        - "main"
+        - "div[role='main']"
+        # - "#content"                   # Example: Add custom selectors here if needed
+        - "article"
+      wait_after_load_seconds: 0         # Wait N seconds after page load state 'complete' before parsing. Set to 0 to disable.
+      delay_between_requests_seconds: 1  # Wait N seconds between processing each URL. Set to 0 to disable.
 
-2.  **Run the Script:**
+      # --- Processing Control ---
+      start_at: 0                        # Optional: Skip the first N URLs (0-based index, e.g., 0 starts from first, 5 skips first 5)
+      run_in_batches: false              # Set to true to enable interactive batch processing
+      batch_size: 50                     # Default number of URLs per batch if batching is enabled
 
-    * Open your terminal or command prompt.
-    * Navigate to the project's root directory.
-    * Make sure your virtual environment is activated (if you created one).
-    * Execute the script using the following command:
+    ```
 
-        ```bash
-        python -m src.py_script_web_page_details
-        ```
+5.  **Prepare Input File (`input_urls.txt` or `input_urls.csv`):**
+    * Create the input file specified in `config.yaml`.
+    * **TXT Format:** List URLs one per line. Lines starting with `#` are ignored.
+    * **CSV Format:** List URLs in the *first column*. The script will attempt to skip a header row if the first cell doesn't look like a URL (doesn't start with `http`). Other columns are ignored. Lines where the first column starts with `#` are ignored.
+    ```text
+    # --- Example input.txt ---
+    # Comment line
+    [https://example.com/page1](https://example.com/page1)
+    [https://example.org/page2](https://example.org/page2)
 
-    * The script will start processing the URLs. It will display progress messages in the terminal.
-    * You'll be prompted to enter how many URLs you want to process. Enter 0 or leave it blank to process all URLs in the input file.
+    # --- Example input.csv ---
+    # URL,Optional Info Column
+    # [https://example.com/page1,Some](https://example.com/page1,Some) info
+    # [https://example.org/page2,More](https://example.org/page2,More) info
+    ```
 
-3.  **Find the Output:**
 
-    * The extracted metadata will be saved in a CSV file.
-    * The location of the CSV file will be:
-        * The directory specified in `output_base_dir` in the `config.yaml` file.
-        * Within a subdirectory named as specified in `output_subfolder` in the `config.yaml` file.
-    * The CSV file will be named something like `page_details_example_com_2023-10-27_101530.csv` (it will include the domain name and a timestamp).
+## Running the Script
 
-## 5. File Structure <a name="file-structure"></a>
+Ensure your virtual environment is activated. Navigate to the project's root directory in your terminal and run the script using the `-m` flag to treat `src` as a package:
 
-Here's a breakdown of the project's file structure:
+```bash
+python -m src.main
